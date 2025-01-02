@@ -21,36 +21,99 @@
   },
   "pluginType": "elizaos:plugin:1.0.0",
   "pluginParameters": {
-      "type": "object",
-      "required": ["githubOwner", "githubRepo", "githubBranch", "githubPath", "githubApiToken"],
-      "properties": {
-        "githubOwner": {
-          "type": "string",
-          "description": "GitHub owner/organization name"
+    "type": "object",
+    "required": ["twitterUsername", "twitterPassword", "twitterEmail", "twitter2faSecret"],
+    "properties": {
+      "twitterDryRun": {
+        "type": "boolean",
+        "description": "Twitter Dry Run Mode"
+      },
+      "twitterUsername": {
+        "type": "string",
+        "description": "Twitter Username"
+      },
+      "twitterPassword": {
+        "type": "string",
+        "description": "Twitter Password"
+      },
+      "twitterEmail": {
+        "type": "string",
+        "description": "Twitter Email"
+      },
+      "maxTweetLength": {
+        "type": "number",
+        "description": "Maximum Tweet Length",
+        "default": 280
+      },
+      "twitterSearchEnable": {
+        "type": "boolean",
+        "description": "Enable Twitter Search",
+        "default": false
+      },
+      "twitter2faSecret": {
+        "type": "string",
+        "description": "Twitter 2FA Secret"
+      },
+      "twitterRetryLimit": {
+        "type": "number",
+        "description": "Twitter Retry Limit",
+        "default": 5
+      },
+      "twitterPollInterval": {
+        "type": "number",
+        "description": "Twitter Poll Interval in seconds",
+        "default": 120
+      },
+      "twitterTargetUsers": {
+        "type": "array",
+        "description": "Twitter Target Users",
+        "items": {
+          "type": "string"
         },
-        "githubRepo": {
-          "type": "string",
-          "description": "GitHub repository name"
-        },
-        "githubBranch": {
-          "type": "string",
-          "description": "GitHub branch name"
-        },
-        "githubPath": {
-          "type": "string",
-          "description": "GitHub repository path"
-        },
-        "githubApiToken": {
-          "type": "string",
-          "description": "GitHub API token"
-        }
+        "default": []
+      },
+      "postIntervalMin": {
+        "type": "number",
+        "description": "Minimum Post Interval in minutes",
+        "default": 90
+      },
+      "postIntervalMax": {
+        "type": "number",
+        "description": "Maximum Post Interval in minutes",
+        "default": 180
+      },
+      "enableActionProcessing": {
+        "type": "boolean",
+        "description": "Enable Action Processing",
+        "default": false
+      },
+      "actionInterval": {
+        "type": "number",
+        "description": "Action Interval in minutes",
+        "default": 5
+      },
+      "postImmediately": {
+        "type": "boolean",
+        "description": "Post Immediately",
+        "default": false
       }
-    },
-    "pluginEnv": {
-      "GITHUB_OWNER": "githubOwner",
-      "GITHUB_REPO": "githubRepo",
-      "GITHUB_BRANCH": "githubBranch",
-      "GITHUB_PATH": "githubPath",
-      "GITHUB_API_TOKEN": "githubApiToken"
     }
+  },
+  "pluginEnv": {
+    "TWITTER_DRY_RUN": "twitterDryRun",
+    "TWITTER_USERNAME": "twitterUsername",
+    "TWITTER_PASSWORD": "twitterPassword",
+    "TWITTER_EMAIL": "twitterEmail",
+    "MAX_TWEET_LENGTH": "maxTweetLength",
+    "TWITTER_SEARCH_ENABLE": "twitterSearchEnable",
+    "TWITTER_2FA_SECRET": "twitter2faSecret",
+    "TWITTER_RETRY_LIMIT": "twitterRetryLimit",
+    "TWITTER_POLL_INTERVAL": "twitterPollInterval",
+    "TWITTER_TARGET_USERS": "twitterTargetUsers",
+    "POST_INTERVAL_MIN": "postIntervalMin",
+    "POST_INTERVAL_MAX": "postIntervalMax",
+    "ENABLE_ACTION_PROCESSING": "enableActionProcessing",
+    "ACTION_INTERVAL": "actionInterval",
+    "POST_IMMEDIATELY": "postImmediately"
+  }
 }
