@@ -18,5 +18,39 @@
   },
   "peerDependencies": {
     "whatwg-url": "7.1.0"
-  }
+  },
+  "pluginType": "elizaos:plugin:1.0.0",
+  "pluginParameters": {
+      "type": "object",
+      "required": ["githubOwner", "githubRepo", "githubBranch", "githubPath", "githubApiToken"],
+      "properties": {
+        "githubOwner": {
+          "type": "string",
+          "description": "GitHub owner/organization name"
+        },
+        "githubRepo": {
+          "type": "string",
+          "description": "GitHub repository name"
+        },
+        "githubBranch": {
+          "type": "string",
+          "description": "GitHub branch name"
+        },
+        "githubPath": {
+          "type": "string",
+          "description": "GitHub repository path"
+        },
+        "githubApiToken": {
+          "type": "string",
+          "description": "GitHub API token"
+        }
+      }
+    },
+    "pluginEnv": {
+      "GITHUB_OWNER": "githubOwner",
+      "GITHUB_REPO": "githubRepo",
+      "GITHUB_BRANCH": "githubBranch",
+      "GITHUB_PATH": "githubPath",
+      "GITHUB_API_TOKEN": "githubApiToken"
+    }
 }
