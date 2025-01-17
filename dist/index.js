@@ -3713,8 +3713,12 @@ var TwitterManager = class {
   search;
   interaction;
   space;
-  constructor(runtime, twitterConfig) {
-    this.client = new ClientBase(runtime, twitterConfig);
+  constructor(runtime, twitterConfig, env) {
+    if (env) {
+      this.client = new ClientBase(runtime, env);
+    } else {
+      this.client = new ClientBase(runtime, twitterConfig);
+    }
     this.post = new TwitterPostClient(this.client, runtime);
     if (twitterConfig.TWITTER_SEARCH_ENABLE) {
       elizaLogger8.warn("Twitter/X client running in a mode that:");
@@ -3731,10 +3735,10 @@ var TwitterManager = class {
   }
 };
 var TwitterClientInterface = {
-  async start(runtime) {
+  async start(env, runtime) {
     const twitterConfig = await validateTwitterConfig(runtime);
     elizaLogger8.log("Twitter client started");
-    const manager = new TwitterManager(runtime, twitterConfig);
+    const manager = new TwitterManager(runtime, twitterConfig, env);
     await manager.client.init();
     await manager.post.start();
     if (manager.search) {
