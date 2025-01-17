@@ -21,9 +21,14 @@ class TwitterManager {
     interaction: TwitterInteractionClient;
     space?: TwitterSpaceClient;
 
-    constructor(runtime: IAgentRuntime, twitterConfig: TwitterConfig) {
+    constructor(runtime: IAgentRuntime, twitterConfig: TwitterConfig, env?:any) {
+        if(env){
+            this.client = new ClientBase(runtime, env);
+        }else {
+            this.client = new ClientBase(runtime, twitterConfig);
+        }
+            
         // Pass twitterConfig to the base client
-        this.client = new ClientBase(runtime, twitterConfig);
 
         // Posting logic
         this.post = new TwitterPostClient(this.client, runtime);
@@ -49,13 +54,13 @@ class TwitterManager {
 }
 
 export const TwitterClientInterface: Client = {
-    async start(runtime: IAgentRuntime) {
+    async start(env:any, runtime: IAgentRuntime) {
         const twitterConfig: TwitterConfig =
             await validateTwitterConfig(runtime);
 
         elizaLogger.log("Twitter client started");
 
-        const manager = new TwitterManager(runtime, twitterConfig);
+        const manager = new TwitterManager(runtime, twitterConfig, env);
 
         // Initialize login/session
         await manager.client.init();
