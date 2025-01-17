@@ -21,13 +21,13 @@ class TwitterManager {
     interaction: TwitterInteractionClient;
     space?: TwitterSpaceClient;
 
-    constructor(runtime: IAgentRuntime, twitterConfig: TwitterConfig, env?:any) {
-        if(env){
+    constructor(runtime: IAgentRuntime, twitterConfig: TwitterConfig, env?: any) {
+        if (env) {
             this.client = new ClientBase(runtime, env);
-        }else {
+        } else {
             this.client = new ClientBase(runtime, twitterConfig);
         }
-            
+
         // Pass twitterConfig to the base client
 
         // Posting logic
@@ -54,7 +54,7 @@ class TwitterManager {
 }
 
 export const TwitterClientInterface: Client = {
-    async start(env:any, runtime: IAgentRuntime) {
+    async start(env: any, runtime: IAgentRuntime) {
         const twitterConfig: TwitterConfig =
             await validateTwitterConfig(runtime);
 
