@@ -7,6 +7,7 @@
   "types": "dist/index.d.ts",
   "exports": {
     "./package.json": "./package.json",
+    "./plugin.json": "./plugin.json",
     ".": {
       "import": {
         "@elizaos/source": "./src/index.ts",
@@ -19,7 +20,6 @@
     "dist"
   ],
   "dependencies": {
-    "@elizaos/core": "workspace:*",
     "@types/lodash": "^4.17.14",
     "agent-twitter-client": "0.0.18",
     "discord.js": "14.16.3",
@@ -40,65 +40,5 @@
   },
   "peerDependencies": {
     "whatwg-url": "7.1.0"
-  },
-  "pluginType": "elizaos:client:1.0.0",
-  "pluginParameters": {
-    "TWITTER_USERNAME": {
-      "type": "string"
-    },
-    "TWITTER_PASSWORD": {
-      "type": "string"
-    },
-    "TWITTER_EMAIL": {
-      "type": "string"
-    },
-    "TWITTER_2FA_SECRET": {
-      "type": "string"
-    },
-    "TWITTER_PREMIUM": {
-      "type": "string"
-    },
-    "TWITTER_DRY_RUN": {
-      "type": "string"
-    },
-    "MAX_TWEET_LENGTH": {
-      "type": "string"
-    },
-    "TWITTER_SEARCH_ENABLE": {
-      "type": "string"
-    },
-    "TWITTER_RETRY_LIMIT": {
-      "type": "string"
-    },
-    "TWITTER_POLL_INTERVAL": {
-      "type": "string"
-    },
-    "TWITTER_TARGET_USERS": {
-      "type": "string"
-    },
-    "POST_INTERVAL_MIN": {
-      "type": "string"
-    },
-    "POST_INTERVAL_MAX": {
-      "type": "string"
-    },
-    "ENABLE_ACTION_PROCESSING": {
-      "type": "string"
-    },
-    "ACTION_INTERVAL": {
-      "type": "string"
-    },
-    "POST_IMMEDIATELY": {
-      "type": "string"
-    },
-    "TWITTER_SPACES_ENABLE": {
-      "type": "string"
-    },
-    "MAX_ACTIONS_PROCESSING": {
-      "type": "string"
-    },
-    "ACTION_TIMELINE_TYPE": {
-      "type": "string"
-    }
   }
 }
