@@ -613,75 +613,60 @@ function safeParseInt(value, defaultValue) {
   const parsed = parseInt(value, 10);
   return isNaN(parsed) ? defaultValue : Math.max(1, parsed);
 }
-async function validateTwitterConfig(env) {
+async function validateTwitterConfig(runtime) {
   try {
     const twitterConfig = {
       TWITTER_DRY_RUN: parseBooleanFromText(
-        env.TWITTER_DRY_RUN
+        runtime.getSetting("TWITTER_DRY_RUN")
       ) ?? false,
-      // parseBooleanFromText return null if "", map "" to false
-      TWITTER_USERNAME: env.TWITTER_USERNAME,
-      TWITTER_PASSWORD: env.TWITTER_PASSWORD,
-      TWITTER_EMAIL: env.TWITTER_EMAIL,
-      // number as string?
+      TWITTER_USERNAME: runtime.getSetting("TWITTER_USERNAME"),
+      TWITTER_PASSWORD: runtime.getSetting("TWITTER_PASSWORD"),
+      TWITTER_EMAIL: runtime.getSetting("TWITTER_EMAIL"),
       MAX_TWEET_LENGTH: safeParseInt(
-        env.MAX_TWEET_LENGTH,
+        runtime.getSetting("MAX_TWEET_LENGTH"),
         DEFAULT_MAX_TWEET_LENGTH
       ),
       TWITTER_SEARCH_ENABLE: parseBooleanFromText(
-        env.TWITTER_SEARCH_ENABLE
+        runtime.getSetting("TWITTER_SEARCH_ENABLE")
       ) ?? false,
-      // string passthru
-      TWITTER_2FA_SECRET: env.TWITTER_2FA_SECRET || "",
-      // int
+      TWITTER_2FA_SECRET: runtime.getSetting("TWITTER_2FA_SECRET") || "",
       TWITTER_RETRY_LIMIT: safeParseInt(
-        env.TWITTER_RETRY_LIMIT,
+        runtime.getSetting("TWITTER_RETRY_LIMIT"),
         5
       ),
-      // int in seconds
       TWITTER_POLL_INTERVAL: safeParseInt(
-        env.TWITTER_POLL_INTERVAL,
+        runtime.getSetting("TWITTER_POLL_INTERVAL"),
         120
-        // 2m
       ),
-      // comma separated string
       TWITTER_TARGET_USERS: parseTargetUsers(
-        env.TWITTER_TARGET_USERS
+        runtime.getSetting("TWITTER_TARGET_USERS")
       ),
-      // int in minutes
       POST_INTERVAL_MIN: safeParseInt(
-        env.POST_INTERVAL_MIN,
+        runtime.getSetting("POST_INTERVAL_MIN"),
         90
-        // 1.5 hours
       ),
-      // int in minutes
       POST_INTERVAL_MAX: safeParseInt(
-        env.POST_INTERVAL_MAX,
+        runtime.getSetting("POST_INTERVAL_MAX"),
         180
-        // 3 hours
       ),
-      // bool
       ENABLE_ACTION_PROCESSING: parseBooleanFromText(
-        env.ENABLE_ACTION_PROCESSING
+        runtime.getSetting("ENABLE_ACTION_PROCESSING")
       ) ?? false,
-      // init in minutes (min 1m)
       ACTION_INTERVAL: safeParseInt(
-        env.ACTION_INTERVAL,
+        runtime.getSetting("ACTION_INTERVAL"),
         5
-        // 5 minutes
       ),
-      // bool
       POST_IMMEDIATELY: parseBooleanFromText(
-        env.POST_IMMEDIATELY
+        runtime.getSetting("POST_IMMEDIATELY")
       ) ?? false,
       TWITTER_SPACES_ENABLE: parseBooleanFromText(
-        env.TWITTER_SPACES_ENABLE
+        runtime.getSetting("TWITTER_SPACES_ENABLE")
       ) ?? false,
       MAX_ACTIONS_PROCESSING: safeParseInt(
-        env.MAX_ACTIONS_PROCESSING,
+        runtime.getSetting("MAX_ACTIONS_PROCESSING"),
         1
       ),
-      ACTION_TIMELINE_TYPE: env.ACTION_TIMELINE_TYPE
+      ACTION_TIMELINE_TYPE: runtime.getSetting("ACTION_TIMELINE_TYPE")
     };
     return twitterEnvSchema.parse(twitterConfig);
   } catch (error) {
@@ -3731,8 +3716,8 @@ var TwitterManager = class {
   }
 };
 var TwitterClientInterface = {
-  async start(env, runtime) {
-    const twitterConfig = await validateTwitterConfig(env);
+  async start(runtime) {
+    const twitterConfig = await validateTwitterConfig(runtime);
     elizaLogger8.log("Twitter client started");
     const manager = new TwitterManager(runtime, twitterConfig);
     await manager.client.init();
