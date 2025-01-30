@@ -1,4 +1,142 @@
-// src/index.ts
+// src/environment.ts
+import {
+  parseBooleanFromText,
+  ActionTimelineType
+} from "@elizaos/core";
+import { z, ZodError } from "zod";
+var DEFAULT_MAX_TWEET_LENGTH = 280;
+var twitterUsernameSchema = z.string().min(1, "An X/Twitter Username must be at least 1 character long").max(15, "An X/Twitter Username cannot exceed 15 characters").refine((username) => {
+  if (username === "*") return true;
+  return /^[A-Za-z0-9_]+$/.test(username);
+}, "An X Username can only contain letters, numbers, and underscores");
+var twitterEnvSchema = z.object({
+  TWITTER_DRY_RUN: z.boolean(),
+  TWITTER_USERNAME: z.string().min(1, "X/Twitter username is required"),
+  TWITTER_PASSWORD: z.string().min(1, "X/Twitter password is required"),
+  TWITTER_EMAIL: z.string().email("Valid X/Twitter email is required"),
+  MAX_TWEET_LENGTH: z.number().int().default(DEFAULT_MAX_TWEET_LENGTH),
+  TWITTER_SEARCH_ENABLE: z.boolean().default(false),
+  TWITTER_2FA_SECRET: z.string(),
+  TWITTER_RETRY_LIMIT: z.number().int(),
+  TWITTER_POLL_INTERVAL: z.number().int(),
+  TWITTER_TARGET_USERS: z.array(twitterUsernameSchema).default([]),
+  // I guess it's possible to do the transformation with zod
+  // not sure it's preferable, maybe a readability issue
+  // since more people will know js/ts than zod
+  /*
+      z
+      .string()
+      .transform((val) => val.trim())
+      .pipe(
+          z.string()
+              .transform((val) =>
+                  val ? val.split(',').map((u) => u.trim()).filter(Boolean) : []
+              )
+              .pipe(
+                  z.array(
+                      z.string()
+                          .min(1)
+                          .max(15)
+                          .regex(
+                              /^[A-Za-z][A-Za-z0-9_]*[A-Za-z0-9]$|^[A-Za-z]$/,
+                              'Invalid Twitter username format'
+                          )
+                  )
+              )
+              .transform((users) => users.join(','))
+      )
+      .optional()
+      .default(''),
+  */
+  POST_INTERVAL_MIN: z.number().int(),
+  POST_INTERVAL_MAX: z.number().int(),
+  ENABLE_ACTION_PROCESSING: z.boolean(),
+  ACTION_INTERVAL: z.number().int(),
+  POST_IMMEDIATELY: z.boolean(),
+  TWITTER_SPACES_ENABLE: z.boolean().default(false),
+  MAX_ACTIONS_PROCESSING: z.number().int(),
+  ACTION_TIMELINE_TYPE: z.nativeEnum(ActionTimelineType).default(ActionTimelineType.ForYou)
+});
+function parseTargetUsers(targetUsersStr) {
+  if (!(targetUsersStr == null ? void 0 : targetUsersStr.trim())) {
+    return [];
+  }
+  return targetUsersStr.split(",").map((user) => user.trim()).filter(Boolean);
+}
+function safeParseInt(value, defaultValue) {
+  if (!value) return defaultValue;
+  const parsed = parseInt(value, 10);
+  return isNaN(parsed) ? defaultValue : Math.max(1, parsed);
+}
+async function validateTwitterConfig(runtime) {
+  try {
+    const twitterConfig = {
+      TWITTER_DRY_RUN: parseBooleanFromText(
+        runtime.getSetting("TWITTER_DRY_RUN")
+      ) ?? false,
+      TWITTER_USERNAME: runtime.getSetting("TWITTER_USERNAME"),
+      TWITTER_PASSWORD: runtime.getSetting("TWITTER_PASSWORD"),
+      TWITTER_EMAIL: runtime.getSetting("TWITTER_EMAIL"),
+      MAX_TWEET_LENGTH: safeParseInt(
+        runtime.getSetting("MAX_TWEET_LENGTH"),
+        DEFAULT_MAX_TWEET_LENGTH
+      ),
+      TWITTER_SEARCH_ENABLE: parseBooleanFromText(
+        runtime.getSetting("TWITTER_SEARCH_ENABLE")
+      ) ?? false,
+      TWITTER_2FA_SECRET: runtime.getSetting("TWITTER_2FA_SECRET") || "",
+      TWITTER_RETRY_LIMIT: safeParseInt(
+        runtime.getSetting("TWITTER_RETRY_LIMIT"),
+        5
+      ),
+      TWITTER_POLL_INTERVAL: safeParseInt(
+        runtime.getSetting("TWITTER_POLL_INTERVAL"),
+        120
+      ),
+      TWITTER_TARGET_USERS: parseTargetUsers(
+        runtime.getSetting("TWITTER_TARGET_USERS")
+      ),
+      POST_INTERVAL_MIN: safeParseInt(
+        runtime.getSetting("POST_INTERVAL_MIN"),
+        90
+      ),
+      POST_INTERVAL_MAX: safeParseInt(
+        runtime.getSetting("POST_INTERVAL_MAX"),
+        180
+      ),
+      ENABLE_ACTION_PROCESSING: parseBooleanFromText(
+        runtime.getSetting("ENABLE_ACTION_PROCESSING")
+      ) ?? false,
+      ACTION_INTERVAL: safeParseInt(
+        runtime.getSetting("ACTION_INTERVAL"),
+        5
+      ),
+      POST_IMMEDIATELY: parseBooleanFromText(
+        runtime.getSetting("POST_IMMEDIATELY")
+      ) ?? false,
+      TWITTER_SPACES_ENABLE: parseBooleanFromText(
+        runtime.getSetting("TWITTER_SPACES_ENABLE")
+      ) ?? false,
+      MAX_ACTIONS_PROCESSING: safeParseInt(
+        runtime.getSetting("MAX_ACTIONS_PROCESSING"),
+        1
+      ),
+      ACTION_TIMELINE_TYPE: runtime.getSetting("ACTION_TIMELINE_TYPE")
+    };
+    return twitterEnvSchema.parse(twitterConfig);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      const errorMessages = error.errors.map((err) => `${err.path.join(".")}: ${err.message}`).join("\n");
+      throw new Error(
+        `X/Twitter configuration validation failed:
+${errorMessages}`
+      );
+    }
+    throw error;
+  }
+}
+
+// src/twitter-manager.ts
 import { elizaLogger as elizaLogger8 } from "@elizaos/core";
 
 // src/base.ts
@@ -6,7 +144,7 @@ import {
   getEmbeddingZeroVector,
   elizaLogger,
   stringToUuid,
-  ActionTimelineType
+  ActionTimelineType as ActionTimelineType2
 } from "@elizaos/core";
 import {
   Scraper,
@@ -198,30 +336,31 @@ var ClientBase = class _ClientBase extends EventEmitter {
     const homeTimeline = following ? await this.twitterClient.fetchFollowingTimeline(count, []) : await this.twitterClient.fetchHomeTimeline(count, []);
     elizaLogger.debug(homeTimeline, { depth: Infinity });
     const processedTimeline = homeTimeline.filter((t) => t.__typename !== "TweetWithVisibilityResults").map((tweet) => {
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z;
       const obj = {
         id: tweet.id,
-        name: tweet.name ?? tweet?.user_results?.result?.legacy.name,
-        username: tweet.username ?? tweet.core?.user_results?.result?.legacy.screen_name,
-        text: tweet.text ?? tweet.legacy?.full_text,
-        inReplyToStatusId: tweet.inReplyToStatusId ?? tweet.legacy?.in_reply_to_status_id_str ?? null,
-        timestamp: new Date(tweet.legacy?.created_at).getTime() / 1e3,
-        createdAt: tweet.createdAt ?? tweet.legacy?.created_at ?? tweet.core?.user_results?.result?.legacy.created_at,
-        userId: tweet.userId ?? tweet.legacy?.user_id_str,
-        conversationId: tweet.conversationId ?? tweet.legacy?.conversation_id_str,
-        permanentUrl: `https://x.com/${tweet.core?.user_results?.result?.legacy?.screen_name}/status/${tweet.rest_id}`,
-        hashtags: tweet.hashtags ?? tweet.legacy?.entities.hashtags,
-        mentions: tweet.mentions ?? tweet.legacy?.entities.user_mentions,
-        photos: tweet.legacy?.entities?.media?.filter((media) => media.type === "photo").map((media) => ({
+        name: tweet.name ?? ((_b = (_a = tweet == null ? void 0 : tweet.user_results) == null ? void 0 : _a.result) == null ? void 0 : _b.legacy.name),
+        username: tweet.username ?? ((_e = (_d = (_c = tweet.core) == null ? void 0 : _c.user_results) == null ? void 0 : _d.result) == null ? void 0 : _e.legacy.screen_name),
+        text: tweet.text ?? ((_f = tweet.legacy) == null ? void 0 : _f.full_text),
+        inReplyToStatusId: tweet.inReplyToStatusId ?? ((_g = tweet.legacy) == null ? void 0 : _g.in_reply_to_status_id_str) ?? null,
+        timestamp: new Date((_h = tweet.legacy) == null ? void 0 : _h.created_at).getTime() / 1e3,
+        createdAt: tweet.createdAt ?? ((_i = tweet.legacy) == null ? void 0 : _i.created_at) ?? ((_l = (_k = (_j = tweet.core) == null ? void 0 : _j.user_results) == null ? void 0 : _k.result) == null ? void 0 : _l.legacy.created_at),
+        userId: tweet.userId ?? ((_m = tweet.legacy) == null ? void 0 : _m.user_id_str),
+        conversationId: tweet.conversationId ?? ((_n = tweet.legacy) == null ? void 0 : _n.conversation_id_str),
+        permanentUrl: `https://x.com/${(_r = (_q = (_p = (_o = tweet.core) == null ? void 0 : _o.user_results) == null ? void 0 : _p.result) == null ? void 0 : _q.legacy) == null ? void 0 : _r.screen_name}/status/${tweet.rest_id}`,
+        hashtags: tweet.hashtags ?? ((_s = tweet.legacy) == null ? void 0 : _s.entities.hashtags),
+        mentions: tweet.mentions ?? ((_t = tweet.legacy) == null ? void 0 : _t.entities.user_mentions),
+        photos: ((_w = (_v = (_u = tweet.legacy) == null ? void 0 : _u.entities) == null ? void 0 : _v.media) == null ? void 0 : _w.filter((media) => media.type === "photo").map((media) => ({
           id: media.id_str,
           url: media.media_url_https,
           // Store media_url_https as url
           alt_text: media.alt_text
-        })) || [],
+        }))) || [],
         thread: tweet.thread || [],
-        urls: tweet.urls ?? tweet.legacy?.entities.urls,
-        videos: tweet.videos ?? tweet.legacy?.entities.media?.filter(
+        urls: tweet.urls ?? ((_x = tweet.legacy) == null ? void 0 : _x.entities.urls),
+        videos: tweet.videos ?? ((_z = (_y = tweet.legacy) == null ? void 0 : _y.entities.media) == null ? void 0 : _z.filter(
           (media) => media.type === "video"
-        ) ?? []
+        )) ?? []
       };
       return obj;
     });
@@ -230,31 +369,34 @@ var ClientBase = class _ClientBase extends EventEmitter {
   async fetchTimelineForActions(count) {
     elizaLogger.debug("fetching timeline for actions");
     const agentUsername = this.twitterConfig.TWITTER_USERNAME;
-    const homeTimeline = this.twitterConfig.ACTION_TIMELINE_TYPE === ActionTimelineType.Following ? await this.twitterClient.fetchFollowingTimeline(count, []) : await this.twitterClient.fetchHomeTimeline(count, []);
-    return homeTimeline.map((tweet) => ({
-      id: tweet.rest_id,
-      name: tweet.core?.user_results?.result?.legacy?.name,
-      username: tweet.core?.user_results?.result?.legacy?.screen_name,
-      text: tweet.legacy?.full_text,
-      inReplyToStatusId: tweet.legacy?.in_reply_to_status_id_str,
-      timestamp: new Date(tweet.legacy?.created_at).getTime() / 1e3,
-      userId: tweet.legacy?.user_id_str,
-      conversationId: tweet.legacy?.conversation_id_str,
-      permanentUrl: `https://twitter.com/${tweet.core?.user_results?.result?.legacy?.screen_name}/status/${tweet.rest_id}`,
-      hashtags: tweet.legacy?.entities?.hashtags || [],
-      mentions: tweet.legacy?.entities?.user_mentions || [],
-      photos: tweet.legacy?.entities?.media?.filter((media) => media.type === "photo").map((media) => ({
-        id: media.id_str,
-        url: media.media_url_https,
-        // Store media_url_https as url
-        alt_text: media.alt_text
-      })) || [],
-      thread: tweet.thread || [],
-      urls: tweet.legacy?.entities?.urls || [],
-      videos: tweet.legacy?.entities?.media?.filter(
-        (media) => media.type === "video"
-      ) || []
-    })).filter((tweet) => tweet.username !== agentUsername).slice(0, count);
+    const homeTimeline = this.twitterConfig.ACTION_TIMELINE_TYPE === ActionTimelineType2.Following ? await this.twitterClient.fetchFollowingTimeline(count, []) : await this.twitterClient.fetchHomeTimeline(count, []);
+    return homeTimeline.map((tweet) => {
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C;
+      return {
+        id: tweet.rest_id,
+        name: (_d = (_c = (_b = (_a = tweet.core) == null ? void 0 : _a.user_results) == null ? void 0 : _b.result) == null ? void 0 : _c.legacy) == null ? void 0 : _d.name,
+        username: (_h = (_g = (_f = (_e = tweet.core) == null ? void 0 : _e.user_results) == null ? void 0 : _f.result) == null ? void 0 : _g.legacy) == null ? void 0 : _h.screen_name,
+        text: (_i = tweet.legacy) == null ? void 0 : _i.full_text,
+        inReplyToStatusId: (_j = tweet.legacy) == null ? void 0 : _j.in_reply_to_status_id_str,
+        timestamp: new Date((_k = tweet.legacy) == null ? void 0 : _k.created_at).getTime() / 1e3,
+        userId: (_l = tweet.legacy) == null ? void 0 : _l.user_id_str,
+        conversationId: (_m = tweet.legacy) == null ? void 0 : _m.conversation_id_str,
+        permanentUrl: `https://twitter.com/${(_q = (_p = (_o = (_n = tweet.core) == null ? void 0 : _n.user_results) == null ? void 0 : _o.result) == null ? void 0 : _p.legacy) == null ? void 0 : _q.screen_name}/status/${tweet.rest_id}`,
+        hashtags: ((_s = (_r = tweet.legacy) == null ? void 0 : _r.entities) == null ? void 0 : _s.hashtags) || [],
+        mentions: ((_u = (_t = tweet.legacy) == null ? void 0 : _t.entities) == null ? void 0 : _u.user_mentions) || [],
+        photos: ((_x = (_w = (_v = tweet.legacy) == null ? void 0 : _v.entities) == null ? void 0 : _w.media) == null ? void 0 : _x.filter((media) => media.type === "photo").map((media) => ({
+          id: media.id_str,
+          url: media.media_url_https,
+          // Store media_url_https as url
+          alt_text: media.alt_text
+        }))) || [],
+        thread: tweet.thread || [],
+        urls: ((_z = (_y = tweet.legacy) == null ? void 0 : _y.entities) == null ? void 0 : _z.urls) || [],
+        videos: ((_C = (_B = (_A = tweet.legacy) == null ? void 0 : _A.entities) == null ? void 0 : _B.media) == null ? void 0 : _C.filter(
+          (media) => media.type === "video"
+        )) || []
+      };
+    }).filter((tweet) => tweet.username !== agentUsername).slice(0, count);
   }
   async fetchSearchTweets(query, maxTweets, searchMode, cursor) {
     try {
@@ -526,13 +668,14 @@ var ClientBase = class _ClientBase extends EventEmitter {
   async fetchProfile(username) {
     try {
       const profile = await this.requestQueue.add(async () => {
+        var _a;
         const profile2 = await this.twitterClient.getProfile(username);
         return {
           id: profile2.userId,
           username,
           screenName: profile2.name || this.runtime.character.name,
           bio: profile2.biography || typeof this.runtime.character.bio === "string" ? this.runtime.character.bio : this.runtime.character.bio.length > 0 ? this.runtime.character.bio[0] : "",
-          nicknames: this.runtime.character.twitterProfile?.nicknames || []
+          nicknames: ((_a = this.runtime.character.twitterProfile) == null ? void 0 : _a.nicknames) || []
         };
       });
       return profile;
@@ -542,144 +685,6 @@ var ClientBase = class _ClientBase extends EventEmitter {
     }
   }
 };
-
-// src/environment.ts
-import {
-  parseBooleanFromText,
-  ActionTimelineType as ActionTimelineType2
-} from "@elizaos/core";
-import { z, ZodError } from "zod";
-var DEFAULT_MAX_TWEET_LENGTH = 280;
-var twitterUsernameSchema = z.string().min(1, "An X/Twitter Username must be at least 1 character long").max(15, "An X/Twitter Username cannot exceed 15 characters").refine((username) => {
-  if (username === "*") return true;
-  return /^[A-Za-z0-9_]+$/.test(username);
-}, "An X Username can only contain letters, numbers, and underscores");
-var twitterEnvSchema = z.object({
-  TWITTER_DRY_RUN: z.boolean(),
-  TWITTER_USERNAME: z.string().min(1, "X/Twitter username is required"),
-  TWITTER_PASSWORD: z.string().min(1, "X/Twitter password is required"),
-  TWITTER_EMAIL: z.string().email("Valid X/Twitter email is required"),
-  MAX_TWEET_LENGTH: z.number().int().default(DEFAULT_MAX_TWEET_LENGTH),
-  TWITTER_SEARCH_ENABLE: z.boolean().default(false),
-  TWITTER_2FA_SECRET: z.string(),
-  TWITTER_RETRY_LIMIT: z.number().int(),
-  TWITTER_POLL_INTERVAL: z.number().int(),
-  TWITTER_TARGET_USERS: z.array(twitterUsernameSchema).default([]),
-  // I guess it's possible to do the transformation with zod
-  // not sure it's preferable, maybe a readability issue
-  // since more people will know js/ts than zod
-  /*
-      z
-      .string()
-      .transform((val) => val.trim())
-      .pipe(
-          z.string()
-              .transform((val) =>
-                  val ? val.split(',').map((u) => u.trim()).filter(Boolean) : []
-              )
-              .pipe(
-                  z.array(
-                      z.string()
-                          .min(1)
-                          .max(15)
-                          .regex(
-                              /^[A-Za-z][A-Za-z0-9_]*[A-Za-z0-9]$|^[A-Za-z]$/,
-                              'Invalid Twitter username format'
-                          )
-                  )
-              )
-              .transform((users) => users.join(','))
-      )
-      .optional()
-      .default(''),
-  */
-  POST_INTERVAL_MIN: z.number().int(),
-  POST_INTERVAL_MAX: z.number().int(),
-  ENABLE_ACTION_PROCESSING: z.boolean(),
-  ACTION_INTERVAL: z.number().int(),
-  POST_IMMEDIATELY: z.boolean(),
-  TWITTER_SPACES_ENABLE: z.boolean().default(false),
-  MAX_ACTIONS_PROCESSING: z.number().int(),
-  ACTION_TIMELINE_TYPE: z.nativeEnum(ActionTimelineType2).default(ActionTimelineType2.ForYou)
-});
-function parseTargetUsers(targetUsersStr) {
-  if (!targetUsersStr?.trim()) {
-    return [];
-  }
-  return targetUsersStr.split(",").map((user) => user.trim()).filter(Boolean);
-}
-function safeParseInt(value, defaultValue) {
-  if (!value) return defaultValue;
-  const parsed = parseInt(value, 10);
-  return isNaN(parsed) ? defaultValue : Math.max(1, parsed);
-}
-async function validateTwitterConfig(runtime) {
-  try {
-    const twitterConfig = {
-      TWITTER_DRY_RUN: parseBooleanFromText(
-        runtime.getSetting("TWITTER_DRY_RUN")
-      ) ?? false,
-      TWITTER_USERNAME: runtime.getSetting("TWITTER_USERNAME"),
-      TWITTER_PASSWORD: runtime.getSetting("TWITTER_PASSWORD"),
-      TWITTER_EMAIL: runtime.getSetting("TWITTER_EMAIL"),
-      MAX_TWEET_LENGTH: safeParseInt(
-        runtime.getSetting("MAX_TWEET_LENGTH"),
-        DEFAULT_MAX_TWEET_LENGTH
-      ),
-      TWITTER_SEARCH_ENABLE: parseBooleanFromText(
-        runtime.getSetting("TWITTER_SEARCH_ENABLE")
-      ) ?? false,
-      TWITTER_2FA_SECRET: runtime.getSetting("TWITTER_2FA_SECRET") || "",
-      TWITTER_RETRY_LIMIT: safeParseInt(
-        runtime.getSetting("TWITTER_RETRY_LIMIT"),
-        5
-      ),
-      TWITTER_POLL_INTERVAL: safeParseInt(
-        runtime.getSetting("TWITTER_POLL_INTERVAL"),
-        120
-      ),
-      TWITTER_TARGET_USERS: parseTargetUsers(
-        runtime.getSetting("TWITTER_TARGET_USERS")
-      ),
-      POST_INTERVAL_MIN: safeParseInt(
-        runtime.getSetting("POST_INTERVAL_MIN"),
-        90
-      ),
-      POST_INTERVAL_MAX: safeParseInt(
-        runtime.getSetting("POST_INTERVAL_MAX"),
-        180
-      ),
-      ENABLE_ACTION_PROCESSING: parseBooleanFromText(
-        runtime.getSetting("ENABLE_ACTION_PROCESSING")
-      ) ?? false,
-      ACTION_INTERVAL: safeParseInt(
-        runtime.getSetting("ACTION_INTERVAL"),
-        5
-      ),
-      POST_IMMEDIATELY: parseBooleanFromText(
-        runtime.getSetting("POST_IMMEDIATELY")
-      ) ?? false,
-      TWITTER_SPACES_ENABLE: parseBooleanFromText(
-        runtime.getSetting("TWITTER_SPACES_ENABLE")
-      ) ?? false,
-      MAX_ACTIONS_PROCESSING: safeParseInt(
-        runtime.getSetting("MAX_ACTIONS_PROCESSING"),
-        1
-      ),
-      ACTION_TIMELINE_TYPE: runtime.getSetting("ACTION_TIMELINE_TYPE")
-    };
-    return twitterEnvSchema.parse(twitterConfig);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      const errorMessages = error.errors.map((err) => `${err.path.join(".")}: ${err.message}`).join("\n");
-      throw new Error(
-        `X/Twitter configuration validation failed:
-${errorMessages}`
-      );
-    }
-    throw error;
-  }
-}
 
 // src/interactions.ts
 import { SearchMode as SearchMode2 } from "agent-twitter-client";
@@ -710,6 +715,7 @@ async function buildConversationThread(tweet, client, maxReplies = 10) {
   const thread = [];
   const visited = /* @__PURE__ */ new Set();
   async function processThread(currentTweet, depth = 0) {
+    var _a;
     elizaLogger2.debug("Processing tweet:", {
       id: currentTweet.id,
       inReplyToStatusId: currentTweet.inReplyToStatusId,
@@ -780,7 +786,7 @@ async function buildConversationThread(tweet, client, maxReplies = 10) {
         if (parentTweet) {
           elizaLogger2.debug("Found parent tweet:", {
             id: parentTweet.id,
-            text: parentTweet.text?.slice(0, 50)
+            text: (_a = parentTweet.text) == null ? void 0 : _a.slice(0, 50)
           });
           await processThread(parentTweet, depth + 1);
         } else {
@@ -805,14 +811,18 @@ async function buildConversationThread(tweet, client, maxReplies = 10) {
   await processThread(tweet, 0);
   elizaLogger2.debug("Final thread built:", {
     totalTweets: thread.length,
-    tweetIds: thread.map((t) => ({
-      id: t.id,
-      text: t.text?.slice(0, 50)
-    }))
+    tweetIds: thread.map((t) => {
+      var _a;
+      return {
+        id: t.id,
+        text: (_a = t.text) == null ? void 0 : _a.slice(0, 50)
+      };
+    })
   });
   return thread;
 }
 async function sendTweet(client, content, roomId, twitterUsername, inReplyTo) {
+  var _a, _b, _c, _d, _e, _f;
   const maxTweetLength = client.twitterConfig.MAX_TWEET_LENGTH;
   const isLongTweet = maxTweetLength > 280;
   const tweetChunks = splitTweetContent(content.text, maxTweetLength);
@@ -862,7 +872,7 @@ async function sendTweet(client, content, roomId, twitterUsername, inReplyTo) {
       )
     );
     const body = await result.json();
-    const tweetResult = isLongTweet ? body?.data?.notetweet_create?.tweet_results?.result : body?.data?.create_tweet?.tweet_results?.result;
+    const tweetResult = isLongTweet ? (_c = (_b = (_a = body == null ? void 0 : body.data) == null ? void 0 : _a.notetweet_create) == null ? void 0 : _b.tweet_results) == null ? void 0 : _c.result : (_f = (_e = (_d = body == null ? void 0 : body.data) == null ? void 0 : _d.create_tweet) == null ? void 0 : _e.tweet_results) == null ? void 0 : _f.result;
     if (tweetResult) {
       const finalTweet = {
         id: tweetResult.rest_id,
@@ -1112,6 +1122,7 @@ var TwitterInteractionClient = class {
     handleTwitterInteractionsLoop();
   }
   async handleTwitterInteractions() {
+    var _a;
     elizaLogger3.log("Checking Twitter interactions");
     const twitterUsername = this.client.profile.username;
     try {
@@ -1168,7 +1179,7 @@ var TwitterInteractionClient = class {
               const randomTweet = tweets[Math.floor(Math.random() * tweets.length)];
               selectedTweets.push(randomTweet);
               elizaLogger3.log(
-                `Selected tweet from ${username}: ${randomTweet.text?.substring(0, 100)}`
+                `Selected tweet from ${username}: ${(_a = randomTweet.text) == null ? void 0 : _a.substring(0, 100)}`
               );
             }
           }
@@ -1238,6 +1249,7 @@ var TwitterInteractionClient = class {
     message,
     thread
   }) {
+    var _a, _b, _c, _d, _e, _f;
     if (tweet.userId === this.client.profile.id) {
       return;
     }
@@ -1313,7 +1325,7 @@ Description: ${desc.description}`).join("\n\n")}` : ""
     const validTargetUsersStr = this.client.twitterConfig.TWITTER_TARGET_USERS.join(",");
     const shouldRespondContext = composeContext({
       state,
-      template: this.runtime.character.templates?.twitterShouldRespondTemplate || this.runtime.character?.templates?.shouldRespondTemplate || twitterShouldRespondTemplate(validTargetUsersStr)
+      template: ((_a = this.runtime.character.templates) == null ? void 0 : _a.twitterShouldRespondTemplate) || ((_c = (_b = this.runtime.character) == null ? void 0 : _b.templates) == null ? void 0 : _c.shouldRespondTemplate) || twitterShouldRespondTemplate(validTargetUsersStr)
     });
     const shouldRespond = await generateShouldRespond({
       runtime: this.runtime,
@@ -1326,7 +1338,7 @@ Description: ${desc.description}`).join("\n\n")}` : ""
     }
     const context = composeContext({
       state,
-      template: this.runtime.character.templates?.twitterMessageHandlerTemplate || this.runtime.character?.templates?.messageHandlerTemplate || twitterMessageHandlerTemplate
+      template: ((_d = this.runtime.character.templates) == null ? void 0 : _d.twitterMessageHandlerTemplate) || ((_f = (_e = this.runtime.character) == null ? void 0 : _e.templates) == null ? void 0 : _f.messageHandlerTemplate) || twitterMessageHandlerTemplate
     });
     elizaLogger3.debug("Interactions prompt:\n" + context);
     const response = await generateMessageResponse({
@@ -1399,6 +1411,7 @@ ${response.text}`;
     const thread = [];
     const visited = /* @__PURE__ */ new Set();
     async function processThread(currentTweet, depth = 0) {
+      var _a;
       elizaLogger3.log("Processing tweet:", {
         id: currentTweet.id,
         inReplyToStatusId: currentTweet.inReplyToStatusId,
@@ -1469,7 +1482,7 @@ ${response.text}`;
           if (parentTweet) {
             elizaLogger3.log("Found parent tweet:", {
               id: parentTweet.id,
-              text: parentTweet.text?.slice(0, 50)
+              text: (_a = parentTweet.text) == null ? void 0 : _a.slice(0, 50)
             });
             await processThread(parentTweet, depth + 1);
           } else {
@@ -1494,10 +1507,13 @@ ${response.text}`;
     await processThread.bind(this)(tweet, 0);
     elizaLogger3.debug("Final thread built:", {
       totalTweets: thread.length,
-      tweetIds: thread.map((t) => ({
-        id: t.id,
-        text: t.text?.slice(0, 50)
-      }))
+      tweetIds: thread.map((t) => {
+        var _a;
+        return {
+          id: t.id,
+          text: (_a = t.text) == null ? void 0 : _a.slice(0, 50)
+        };
+      })
     });
     return thread;
   }
@@ -1581,6 +1597,7 @@ var TwitterPostClient = class {
   discordApprovalChannelId;
   approvalCheckInterval;
   constructor(client, runtime) {
+    var _a;
     this.client = client;
     this.runtime = runtime;
     this.twitterUsername = this.client.twitterConfig.TWITTER_USERNAME;
@@ -1614,7 +1631,7 @@ var TwitterPostClient = class {
         "Twitter client initialized in dry run mode - no actual tweets should be posted"
       );
     }
-    const approvalRequired = this.runtime.getSetting("TWITTER_APPROVAL_ENABLED")?.toLocaleLowerCase() === "true";
+    const approvalRequired = ((_a = this.runtime.getSetting("TWITTER_APPROVAL_ENABLED")) == null ? void 0 : _a.toLocaleLowerCase()) === "true";
     if (approvalRequired) {
       const discordToken = this.runtime.getSetting(
         "TWITTER_APPROVAL_DISCORD_BOT_TOKEN"
@@ -1669,7 +1686,7 @@ var TwitterPostClient = class {
     const generateNewTweetLoop = async () => {
       if (this.approvalRequired) await this.handlePendingTweet();
       const lastPost = await this.runtime.cacheManager.get("twitter/" + this.twitterUsername + "/lastPost");
-      const lastPostTimestamp = lastPost?.timestamp ?? 0;
+      const lastPostTimestamp = (lastPost == null ? void 0 : lastPost.timestamp) ?? 0;
       const minMinutes = this.client.twitterConfig.POST_INTERVAL_MIN;
       const maxMinutes = this.client.twitterConfig.POST_INTERVAL_MAX;
       const randomMinutes = Math.floor(Math.random() * (maxMinutes - minMinutes + 1)) + minMinutes;
@@ -1796,12 +1813,13 @@ var TwitterPostClient = class {
     }
   }
   async sendStandardTweet(client, content, tweetId) {
+    var _a, _b, _c;
     try {
       const standardTweetResult = await client.requestQueue.add(
         async () => await client.twitterClient.sendTweet(content, tweetId)
       );
       const body = await standardTweetResult.json();
-      if (!body?.data?.create_tweet?.tweet_results?.result) {
+      if (!((_c = (_b = (_a = body == null ? void 0 : body.data) == null ? void 0 : _a.create_tweet) == null ? void 0 : _b.tweet_results) == null ? void 0 : _c.result)) {
         console.error("Error sending tweet; Bad response:", body);
         return;
       }
@@ -1841,6 +1859,7 @@ var TwitterPostClient = class {
    * Generates and posts a new tweet. If isDryRun is true, only logs what would have been posted.
    */
   async generateNewTweet() {
+    var _a;
     elizaLogger4.log("Generating new tweet");
     try {
       const roomId = stringToUuid4(
@@ -1869,7 +1888,7 @@ var TwitterPostClient = class {
       );
       const context = composeContext2({
         state,
-        template: this.runtime.character.templates?.twitterPostTemplate || twitterPostTemplate
+        template: ((_a = this.runtime.character.templates) == null ? void 0 : _a.twitterPostTemplate) || twitterPostTemplate
       });
       elizaLogger4.debug("generate post prompt:\n" + context);
       const newTweetContent = await generateText({
@@ -1947,13 +1966,14 @@ var TwitterPostClient = class {
     }
   }
   async generateTweetContent(tweetState, options) {
+    var _a;
     const context = composeContext2({
       state: tweetState,
-      template: options?.template || this.runtime.character.templates?.twitterPostTemplate || twitterPostTemplate
+      template: (options == null ? void 0 : options.template) || ((_a = this.runtime.character.templates) == null ? void 0 : _a.twitterPostTemplate) || twitterPostTemplate
     });
     const response = await generateText({
       runtime: this.runtime,
-      context: options?.context || context,
+      context: (options == null ? void 0 : options.context) || context,
       modelClass: ModelClass2.SMALL
     });
     elizaLogger4.debug("generate tweet content response:\n" + response);
@@ -1989,6 +2009,7 @@ var TwitterPostClient = class {
    * only simulates and logs actions without making API calls.
    */
   async processTweetActions() {
+    var _a;
     if (this.isProcessing) {
       elizaLogger4.log("Already processing tweet actions, skipping");
       return null;
@@ -2038,7 +2059,7 @@ Text: ${tweet.text}`
           );
           const actionContext = composeContext2({
             state: tweetState,
-            template: this.runtime.character.templates?.twitterActionTemplate || twitterActionTemplate
+            template: ((_a = this.runtime.character.templates) == null ? void 0 : _a.twitterActionTemplate) || twitterActionTemplate
           });
           const actionResponse = await generateTweetActions({
             runtime: this.runtime,
@@ -2099,6 +2120,7 @@ Text: ${tweet.text}`
    * @returns A promise that resolves to an array of results with details of executed actions.
    */
   async processTimelineActions(timelines) {
+    var _a, _b, _c, _d, _e;
     const results = [];
     for (const timeline of timelines) {
       const { actionResponse, tweetState, roomId, tweet } = timeline;
@@ -2152,7 +2174,7 @@ Text: ${tweet.text}`
               (t) => `@${t.username} (${new Date(t.timestamp * 1e3).toLocaleString()}): ${t.text}`
             ).join("\n\n");
             const imageDescriptions = [];
-            if (tweet.photos?.length > 0) {
+            if (((_a = tweet.photos) == null ? void 0 : _a.length) > 0) {
               elizaLogger4.log(
                 "Processing images in tweet for context"
               );
@@ -2206,7 +2228,7 @@ ${imageDescriptions.map((desc, i) => `Image ${i + 1}: ${desc}`).join("\n")}` : "
             const quoteContent = await this.generateTweetContent(
               enrichedState,
               {
-                template: this.runtime.character.templates?.twitterMessageHandlerTemplate || twitterMessageHandlerTemplate
+                template: ((_b = this.runtime.character.templates) == null ? void 0 : _b.twitterMessageHandlerTemplate) || twitterMessageHandlerTemplate
               }
             );
             if (!quoteContent) {
@@ -2232,7 +2254,7 @@ ${imageDescriptions.map((desc, i) => `Image ${i + 1}: ${desc}`).join("\n")}` : "
                 )
               );
               const body = await result.json();
-              if (body?.data?.create_tweet?.tweet_results?.result) {
+              if ((_e = (_d = (_c = body == null ? void 0 : body.data) == null ? void 0 : _c.create_tweet) == null ? void 0 : _d.tweet_results) == null ? void 0 : _e.result) {
                 elizaLogger4.log(
                   "Successfully posted quote tweet"
                 );
@@ -2317,13 +2339,14 @@ ${quoteContent}`
    * have been replied without making API calls.
    */
   async handleTextOnlyReply(tweet, tweetState, executedActions) {
+    var _a, _b;
     try {
       const thread = await buildConversationThread(tweet, this.client);
       const formattedConversation = thread.map(
         (t) => `@${t.username} (${new Date(t.timestamp * 1e3).toLocaleString()}): ${t.text}`
       ).join("\n\n");
       const imageDescriptions = [];
-      if (tweet.photos?.length > 0) {
+      if (((_a = tweet.photos) == null ? void 0 : _a.length) > 0) {
         elizaLogger4.log("Processing images in tweet for context");
         for (const photo of tweet.photos) {
           const description = await this.runtime.getService(
@@ -2367,7 +2390,7 @@ ${imageDescriptions.map((desc, i) => `Image ${i + 1}: ${desc}`).join("\n")}` : "
         }
       );
       const replyText = await this.generateTweetContent(enrichedState, {
-        template: this.runtime.character.templates?.twitterMessageHandlerTemplate || twitterMessageHandlerTemplate
+        template: ((_b = this.runtime.character.templates) == null ? void 0 : _b.twitterMessageHandlerTemplate) || twitterMessageHandlerTemplate
       });
       if (!replyText) {
         elizaLogger4.error("Failed to generate valid reply content");
@@ -2670,6 +2693,7 @@ var TwitterSearchClient = class {
     );
   }
   async engageWithSearchTerms() {
+    var _a;
     elizaLogger5.log("Engaging with search terms");
     try {
       const searchTerm = [...this.runtime.character.topics][Math.floor(Math.random() * this.runtime.character.topics.length)];
@@ -2738,7 +2762,7 @@ Text: ${tweet.text}
         elizaLogger5.log("Selected tweet ID:", tweetId);
         return;
       }
-      elizaLogger5.log("Selected tweet to reply to:", selectedTweet?.text);
+      elizaLogger5.log("Selected tweet to reply to:", selectedTweet == null ? void 0 : selectedTweet.text);
       if (selectedTweet.username === this.twitterUsername) {
         elizaLogger5.log("Skipping tweet from bot itself");
         return;
@@ -2812,7 +2836,7 @@ Images in Post (Described): ${imageDescriptions.join(", ")}
       await this.client.saveRequestMessage(message, state);
       const context = composeContext3({
         state,
-        template: this.runtime.character.templates?.twitterSearchTemplate || twitterSearchTemplate
+        template: ((_a = this.runtime.character.templates) == null ? void 0 : _a.twitterSearchTemplate) || twitterSearchTemplate
       });
       const responseContent = await generateMessageResponse2({
         runtime: this.runtime,
@@ -2926,29 +2950,30 @@ var SttTtsPlugin = class {
     elizaLogger6.log("[SttTtsPlugin] onAttach => space was attached");
   }
   init(params) {
+    var _a;
     elizaLogger6.log(
       "[SttTtsPlugin] init => Space fully ready. Subscribing to events."
     );
     this.space = params.space;
-    this.janus = this.space?.janusClient;
+    this.janus = (_a = this.space) == null ? void 0 : _a.janusClient;
     const config = params.pluginConfig;
-    this.openAiApiKey = config?.openAiApiKey;
-    this.elevenLabsApiKey = config?.elevenLabsApiKey;
+    this.openAiApiKey = config == null ? void 0 : config.openAiApiKey;
+    this.elevenLabsApiKey = config == null ? void 0 : config.elevenLabsApiKey;
     this.transcriptionService = config.transcriptionService;
-    if (config?.gptModel) this.gptModel = config.gptModel;
-    if (typeof config?.silenceThreshold === "number") {
+    if (config == null ? void 0 : config.gptModel) this.gptModel = config.gptModel;
+    if (typeof (config == null ? void 0 : config.silenceThreshold) === "number") {
       this.silenceThreshold = config.silenceThreshold;
     }
-    if (config?.voiceId) {
+    if (config == null ? void 0 : config.voiceId) {
       this.voiceId = config.voiceId;
     }
-    if (config?.elevenLabsModel) {
+    if (config == null ? void 0 : config.elevenLabsModel) {
       this.elevenLabsModel = config.elevenLabsModel;
     }
-    if (config?.systemPrompt) {
+    if (config == null ? void 0 : config.systemPrompt) {
       this.systemPrompt = config.systemPrompt;
     }
-    if (config?.chatContext) {
+    if (config == null ? void 0 : config.chatContext) {
       this.chatContext = config.chatContext;
     }
     elizaLogger6.log("[SttTtsPlugin] Plugin config =>", config);
@@ -3105,6 +3130,7 @@ var SttTtsPlugin = class {
    * Simple ChatGPT call
    */
   async askChatGPT(userText) {
+    var _a, _b, _c;
     if (!this.openAiApiKey) {
       throw new Error("[SttTtsPlugin] No OpenAI API key for ChatGPT");
     }
@@ -3132,7 +3158,7 @@ var SttTtsPlugin = class {
       );
     }
     const json = await resp.json();
-    const reply = json.choices?.[0]?.message?.content || "";
+    const reply = ((_c = (_b = (_a = json.choices) == null ? void 0 : _a[0]) == null ? void 0 : _b.message) == null ? void 0 : _c.content) || "";
     this.chatContext.push({ role: "user", content: userText });
     this.chatContext.push({ role: "assistant", content: reply });
     return reply.trim();
@@ -3209,11 +3235,12 @@ var SttTtsPlugin = class {
    * We'll do 10ms @48k => 960 samples per frame
    */
   async streamToJanus(samples, sampleRate) {
+    var _a;
     const FRAME_SIZE = Math.floor(sampleRate * 0.01);
     for (let offset = 0; offset + FRAME_SIZE <= samples.length; offset += FRAME_SIZE) {
       const frame = new Int16Array(FRAME_SIZE);
       frame.set(samples.subarray(offset, offset + FRAME_SIZE));
-      this.janus?.pushLocalAudio(frame, sampleRate, 1);
+      (_a = this.janus) == null ? void 0 : _a.pushLocalAudio(frame, sampleRate, 1);
       await new Promise((r) => setTimeout(r, 10));
     }
   }
@@ -3535,14 +3562,15 @@ var TwitterSpaceClient = class {
    * Periodic management: check durations, remove extras, maybe accept new from queue
    */
   async manageCurrentSpace() {
+    var _a, _b;
     if (!this.spaceId || !this.currentSpace) return;
     try {
       const audioSpace = await this.scraper.getAudioSpaceById(
         this.spaceId
       );
       const { participants } = audioSpace;
-      const numSpeakers = participants.speakers?.length || 0;
-      const totalListeners = participants.listeners?.length || 0;
+      const numSpeakers = ((_a = participants.speakers) == null ? void 0 : _a.length) || 0;
+      const totalListeners = ((_b = participants.listeners) == null ? void 0 : _b.length) || 0;
       const maxDur = this.decisionOptions.speakerMaxDurationMs ?? 24e4;
       const now = Date.now();
       for (let i = this.activeSpeakers.length - 1; i >= 0; i--) {
@@ -3603,9 +3631,10 @@ var TwitterSpaceClient = class {
     }
   }
   async handleSpeakerRequest(req) {
+    var _a;
     if (!this.spaceId || !this.currentSpace) return;
     const audioSpace = await this.scraper.getAudioSpaceById(this.spaceId);
-    const janusSpeakers = audioSpace?.participants?.speakers || [];
+    const janusSpeakers = ((_a = audioSpace == null ? void 0 : audioSpace.participants) == null ? void 0 : _a.speakers) || [];
     if (janusSpeakers.length < (this.decisionOptions.maxSpeakers ?? 1)) {
       elizaLogger7.log(`[Space] Accepting speaker @${req.username} now`);
       await speakFiller(
@@ -3691,7 +3720,7 @@ var TwitterSpaceClient = class {
   }
 };
 
-// src/index.ts
+// src/twitter-manager.ts
 var TwitterManager = class {
   client;
   post;
@@ -3715,10 +3744,12 @@ var TwitterManager = class {
     }
   }
 };
+
+// src/index.ts
 var TwitterClientInterface = {
   async start(runtime) {
     const twitterConfig = await validateTwitterConfig(runtime);
-    elizaLogger8.log("Twitter client started");
+    console.log("Twitter client started");
     const manager = new TwitterManager(runtime, twitterConfig);
     await manager.client.init();
     await manager.post.start();
@@ -3732,12 +3763,11 @@ var TwitterClientInterface = {
     return manager;
   },
   async stop(_runtime) {
-    elizaLogger8.warn("Twitter client does not support stopping yet");
+    console.warn("Twitter client does not support stopping yet");
   }
 };
 var index_default = TwitterClientInterface;
 export {
-  TwitterClientInterface,
   index_default as default
 };
 //# sourceMappingURL=index.js.map
