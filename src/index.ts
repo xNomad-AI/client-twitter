@@ -2,6 +2,8 @@ import { validateTwitterConfig, TwitterConfig } from "./environment";
 import { TwitterManager } from "./twitter-manager";
 
 const TwitterClientInterface = {
+    name: 'twitter',
+    config: {},
     async start(runtime: any) {
         const twitterConfig: TwitterConfig =
             await validateTwitterConfig(runtime);
