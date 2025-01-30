@@ -3747,6 +3747,8 @@ var TwitterManager = class {
 
 // src/index.ts
 var TwitterClientInterface = {
+  name: "twitter",
+  config: {},
   async start(runtime) {
     const twitterConfig = await validateTwitterConfig(runtime);
     console.log("Twitter client started");
