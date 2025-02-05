@@ -1,8 +1,5 @@
-declare const TwitterClientInterface: {
-    name: string;
-    config: {};
-    start(runtime: any): Promise<any>;
-    stop(_runtime: any): Promise<void>;
-};
+import { Client } from '@elizaos/core';
 
-export { TwitterClientInterface as default };
+declare const TwitterClientInterface: Client;
+
+export { TwitterClientInterface, TwitterClientInterface as default };
