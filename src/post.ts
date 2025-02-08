@@ -554,6 +554,9 @@ export class TwitterPostClient {
             const parsedResponse = parseJSONObjectFromText(rawTweetContent);
             if (parsedResponse?.text) {
                 tweetTextForPosting = parsedResponse.text;
+            } else {
+                // If not JSON, use the raw text directly
+                tweetTextForPosting = rawTweetContent.trim();
             }
 
             if (
