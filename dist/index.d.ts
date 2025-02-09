@@ -1,6 +1,7 @@
-import { Plugin, Client } from '@elizaos/core';
+declare const twitterPlugin: {
+    name: string;
+    description: string;
+    clients: Client[];
+};
 
-declare const TwitterClientInterface: Client;
-declare const twitterPlugin: Plugin;
-
-export { TwitterClientInterface, twitterPlugin as default };
+export { twitterPlugin as default };
