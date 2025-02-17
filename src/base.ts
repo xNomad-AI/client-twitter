@@ -250,7 +250,7 @@ export class ClientBase extends EventEmitter {
           }
           return data;
         },
-      });
+      }, this.twitterConfig.HTTP_PROXY);
       ClientBase._twitterClients[username] = this.twitterClient;
     }
 

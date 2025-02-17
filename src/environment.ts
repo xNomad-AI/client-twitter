@@ -76,6 +76,7 @@ export const twitterEnvSchema = z.object({
   ACTION_TIMELINE_TYPE: z
     .nativeEnum(ActionTimelineType)
     .default(ActionTimelineType.ForYou),
+  HTTP_PROXY: z.string().optional(),
 });
 
 export type TwitterConfig = z.infer<typeof twitterEnvSchema>;
