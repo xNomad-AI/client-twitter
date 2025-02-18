@@ -75,13 +75,11 @@
         "MAX_TWEET_LENGTH": {
           "type": "integer",
           "default": 280,
-          "optional": true,
           "description": "Maximum length of tweets"
         },
         "TWITTER_SEARCH_ENABLE": {
           "type": "boolean",
           "default": false,
-          "optional": true,
           "description": "Enable Twitter search functionality"
         },
         "TWITTER_2FA_SECRET": {
@@ -105,7 +103,6 @@
             "maxLength": 15
           },
           "default": [],
-          "optional": true,
           "description": "List of Twitter usernames to target"
         },
         "ENABLE_TWITTER_POST_GENERATION": {
@@ -135,7 +132,6 @@
         "TWITTER_SPACES_ENABLE": {
           "type": "boolean",
           "default": false,
-          "optional": true,
           "description": "Enable Twitter Spaces functionality"
         },
         "MAX_ACTIONS_PROCESSING": {
@@ -146,7 +142,6 @@
           "type": "string",
           "enum": ["ForYou", "Following"],
           "default": "ForYou",
-          "optional": true,
           "description": "Type of timeline to process actions from"
         }
       }
