@@ -138,12 +138,12 @@
           "default": 1,
           "description": "Maximum number of actions to process at once"
         },
-        "ACTION_TIMELINE_TYPE": {
-          "type": "string",
-          "enum": ["ForYou", "Following"],
-          "default": "ForYou",
-          "description": "Type of timeline to process actions from"
-        }
+            "ACTION_TIMELINE_TYPE": {
+            "type": "string",
+            "enum": ["foryou", "following"],
+            "default": "ForYou",
+            "description": "Type of timeline to process actions from"
+            }
       }
     }
 }
