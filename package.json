@@ -74,6 +74,7 @@
           "description": "Enable Twitter search functionality"
         },
         "TWITTER_2FA_SECRET": {
+          "optional": true,
           "type": "string",
           "description": "Twitter 2FA secret for authentication"
         },
@@ -138,12 +139,12 @@
           "default": 1,
           "description": "Maximum number of actions to process at once"
         },
-            "ACTION_TIMELINE_TYPE": {
-            "type": "string",
-            "enum": ["foryou", "following"],
-            "default": "ForYou",
-            "description": "Type of timeline to process actions from"
-            }
+        "ACTION_TIMELINE_TYPE": {
+        "type": "string",
+        "enum": ["foryou", "following"],
+        "default": "ForYou",
+        "description": "Type of timeline to process actions from"
+        }
       }
     }
 }
