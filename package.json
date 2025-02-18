@@ -97,6 +97,7 @@
           "maxLength": 15
         },
         "default": [],
+        "optional": true,
         "description": "List of Twitter usernames to target"
       },
       "ENABLE_TWITTER_POST_GENERATION": {
