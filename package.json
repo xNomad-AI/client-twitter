@@ -55,6 +55,7 @@
         },
         "TWITTER_DRY_RUN": {
           "type": "boolean",
+          "default": false,
           "description": "Enable dry run mode for Twitter operations"
         },
         "TWITTER_USERNAME": {
@@ -88,11 +89,13 @@
         },
         "TWITTER_RETRY_LIMIT": {
           "type": "integer",
+          "default": 5,
           "description": "Number of retry attempts for Twitter operations"
         },
         "TWITTER_POLL_INTERVAL": {
           "type": "integer",
-          "description": "Interval for polling Twitter updates (in milliseconds)"
+          "default": 120,
+          "description": "Interval for polling Twitter updates (in seconds)"
         },
         "TWITTER_TARGET_USERS": {
           "type": "array",
@@ -107,26 +110,32 @@
         },
         "ENABLE_TWITTER_POST_GENERATION": {
           "type": "boolean",
+          "default": true,
           "description": "Enable automatic Twitter post generation"
         },
         "POST_INTERVAL_MIN": {
           "type": "integer",
-          "description": "Minimum interval between posts (in milliseconds)"
+          "default": 90,
+          "description": "Minimum interval between posts (in minutes)"
         },
         "POST_INTERVAL_MAX": {
           "type": "integer",
-          "description": "Maximum interval between posts (in milliseconds)"
+          "default": 180,
+          "description": "Maximum interval between posts (in minutes)"
         },
         "ENABLE_ACTION_PROCESSING": {
           "type": "boolean",
+          "default": false,
           "description": "Enable processing of Twitter actions"
         },
         "ACTION_INTERVAL": {
           "type": "integer",
-          "description": "Interval for processing actions (in milliseconds)"
+          "default": 5,
+          "description": "Interval for processing actions (in minutes)"
         },
         "POST_IMMEDIATELY": {
           "type": "boolean",
+          "default": false,
           "description": "Post content immediately without delay"
         },
         "TWITTER_SPACES_ENABLE": {
@@ -136,6 +145,7 @@
         },
         "MAX_ACTIONS_PROCESSING": {
           "type": "integer",
+          "default": 1,
           "description": "Maximum number of actions to process at once"
         },
         "ACTION_TIMELINE_TYPE": {
