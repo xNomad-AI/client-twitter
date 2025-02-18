@@ -226,6 +226,8 @@ export async function validateTwitterConfig(
       ACTION_TIMELINE_TYPE:
         runtime.getSetting('ACTION_TIMELINE_TYPE') ||
         process.env.ACTION_TIMELINE_TYPE,
+
+      HTTP_PROXY: runtime.getSetting('HTTP_PROXY') || process.env.HTTP_PROXY,
     };
 
     return twitterEnvSchema.parse(twitterConfig);

@@ -411,6 +411,7 @@ export class TwitterPostClient {
       }
       return body.data.create_tweet.tweet_results.result;
     } catch (error) {
+      // console.log(error)
       elizaLogger.error('Error sending standard Tweet:', error);
       throw error;
     }
@@ -598,6 +599,7 @@ export class TwitterPostClient {
         elizaLogger.error('Error sending tweet:', error);
       }
     } catch (error) {
+      // console.log(error)
       elizaLogger.error('Error generating new tweet:', error);
     }
   }

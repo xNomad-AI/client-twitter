@@ -243,14 +243,17 @@ export class ClientBase extends EventEmitter {
     if (ClientBase._twitterClients[username]) {
       this.twitterClient = ClientBase._twitterClients[username];
     } else {
-      this.twitterClient = new CustomScraper({
-        transform: (data) => {
-          if (data.__typename === 'Tweet') {
-            return this.parseTweet(data);
-          }
-          return data;
+      this.twitterClient = new CustomScraper(
+        {
+          transform: (data) => {
+            if (data.__typename === 'Tweet') {
+              return this.parseTweet(data);
+            }
+            return data;
+          },
         },
-      }, this.twitterConfig.HTTP_PROXY);
+        this.twitterConfig.HTTP_PROXY,
+      );
       ClientBase._twitterClients[username] = this.twitterClient;
     }
 

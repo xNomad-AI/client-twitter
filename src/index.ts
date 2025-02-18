@@ -45,6 +45,8 @@ class TwitterManager {
     if (twitterConfig.TWITTER_SPACES_ENABLE) {
       this.space = new TwitterSpaceClient(this.client, runtime);
     }
+
+    // console.log('TwitterManager constructor end');
   }
 }
 

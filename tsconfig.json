@@ -5,7 +5,7 @@
         "lib": ["ESNext", "dom"],
         "moduleResolution": "Bundler",
         "outDir": "./dist",
-        "rootDir": "./src",
+        "rootDir": ".",
         "strict": false,
         "esModuleInterop": true,
         "skipLibCheck": true,
@@ -19,9 +19,8 @@
         "checkJs": false,
         "noEmitOnError": false,
         "moduleDetection": "force",
-        "allowArbitraryExtensions": true,
-        "customConditions": ["@elizaos/source"]
+        "allowArbitraryExtensions": true
     },
-    "include": ["src/**/*.ts"],
+    "include": ["src/**/*.ts", "debug/*.ts"],
     "exclude": ["node_modules", "dist", "src/**/*.d.ts", "types/**/*.test.ts"]
 }

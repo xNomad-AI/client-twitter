@@ -1,6 +1,6 @@
 import { Scraper } from 'agent-twitter-client';
 import { HttpsProxyAgent } from 'https-proxy-agent';
-import axios from 'axios';
+import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
 
 export type FetchParameters = [input: RequestInfo | URL, init?: RequestInit];
 export interface FetchTransformOptions {
@@ -36,35 +36,86 @@ export interface ScraperOptions {
   transform: Partial<FetchTransformOptions>;
 }
 
+export function wrapperFetchFunction(proxyUrl?: string) {
+  let agent = undefined;
+  if (proxyUrl) {
+    agent = new HttpsProxyAgent(proxyUrl);
+  }
+
+  return async (
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ): Promise<Response> => {
+    // console.log(input);
+    // console.log(init.headers);
+
+    /**
+     * // Object.fromEntries(init.headers as any)
+     *  headers: _Headers {
+          [Symbol(normalizedHeaders)]: {
+            authorization: 'Bearer xx',
+            cookie: 'xx',
+            'x-csrf-token': 'xx'
+          },
+          [Symbol(rawHeaderNames)]: Map(3) {
+            'authorization' => 'authorization',
+            'cookie' => 'cookie',
+            'x-csrf-token' => 'x-csrf-token'
+          }
+        }
+    */
+    let headers: Record<string, string> = undefined;
+    try {
+      if (init?.headers) headers = Object.fromEntries(init.headers as any)
+    } catch (error) {
+      if (error.toString() === "TypeError: object is not iterable (cannot read property Symbol(Symbol.iterator))") {
+        headers = init?.headers as any
+      } else {
+        // console.log(error)
+        throw error
+      }
+    }
+
+    // console.log(headers);
+
+    const params: AxiosRequestConfig = {
+      url: input.toString(),
+      method: init?.method || 'GET',
+      headers,
+      data: init?.body,
+      httpsAgent: agent,
+    };
+
+    // console.log(params)
+
+    let response: AxiosResponse;
+    try {
+      response = await axios.request(params);
+    } catch (error) {
+      // console.log(error);
+      throw error;
+    }
+
+    const data =
+      typeof response.data === 'object'
+        ? JSON.stringify(response.data)
+        : response.data;
+
+    return new Response(data, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: new Headers(response.headers as Record<string, string>),
+    });
+  };
+}
+
 export class CustomScraper extends Scraper {
   constructor(
     options?: Partial<ScraperOptions> | undefined,
     proxyUrl?: string,
   ) {
     super({
-      fetch: async (
-        input: RequestInfo | URL,
-        init?: RequestInit,
-      ): Promise<Response> => {
-        let agent = undefined;
-        if (proxyUrl) {
-          agent = new HttpsProxyAgent(proxyUrl);
-        }
-        const response = await axios.request({
-          url: input.toString(),
-          method: init?.method || 'GET',
-          headers: init?.headers
-            ? Object.fromEntries(init.headers as any)
-            : undefined,
-          data: init?.body,
-          httpsAgent: agent,
-        });
-        return new Response(response.data, {
-          status: response.status,
-          statusText: response.statusText,
-          headers: new Headers(response.headers as Record<string, string>),
-        });
-      },
+      fetch: wrapperFetchFunction(proxyUrl),
       // using options
       transform: options?.transform,
     });
