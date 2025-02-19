@@ -93,7 +93,7 @@ async function start() {
         TWITTER_POLL_INTERVAL: '120',
         TWITTER_TARGET_USERS: '',
         ENABLE_TWITTER_POST_GENERATION: 'true',
-        HTTP_PROXY: proxyUrl
+        TWITTER_HTTP_PROXY: proxyUrl,
       },
     }),
   ];

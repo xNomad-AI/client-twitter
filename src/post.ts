@@ -341,7 +341,7 @@ export class TwitterPostClient {
     );
 
     // Cache the tweet
-    await client.cacheTweet(tweet);
+    await client.runtimeHelper.cacheTweet(tweet);
 
     // Log the posted tweet
     elizaLogger.log(`Tweet posted:\n ${tweet.permanentUrl}`);

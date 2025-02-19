@@ -66,13 +66,16 @@ export function wrapperFetchFunction(proxyUrl?: string) {
     */
     let headers: Record<string, string> = undefined;
     try {
-      if (init?.headers) headers = Object.fromEntries(init.headers as any)
+      if (init?.headers) headers = Object.fromEntries(init.headers as any);
     } catch (error) {
-      if (error.toString() === "TypeError: object is not iterable (cannot read property Symbol(Symbol.iterator))") {
-        headers = init?.headers as any
+      if (
+        error.toString() ===
+        'TypeError: object is not iterable (cannot read property Symbol(Symbol.iterator))'
+      ) {
+        headers = init?.headers as any;
       } else {
         // console.log(error)
-        throw error
+        throw error;
       }
     }
 

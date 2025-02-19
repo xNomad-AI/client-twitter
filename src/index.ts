@@ -5,6 +5,7 @@ import { TwitterInteractionClient } from './interactions.ts';
 import { TwitterPostClient } from './post.ts';
 import { TwitterSearchClient } from './search.ts';
 import { TwitterSpaceClient } from './spaces.ts';
+import { Logger } from './settings/index.ts';
 
 /**
  * A manager that orchestrates all specialized Twitter logic:
@@ -30,11 +31,11 @@ class TwitterManager {
 
     // Optional search logic (enabled if TWITTER_SEARCH_ENABLE is true)
     if (twitterConfig.TWITTER_SEARCH_ENABLE) {
-      elizaLogger.warn('Twitter/X client running in a mode that:');
-      elizaLogger.warn('1. violates consent of random users');
-      elizaLogger.warn('2. burns your rate limit');
-      elizaLogger.warn('3. can get your account banned');
-      elizaLogger.warn('use at your own risk');
+      Logger.warn('Twitter/X client running in a mode that:');
+      Logger.warn('1. violates consent of random users');
+      Logger.warn('2. burns your rate limit');
+      Logger.warn('3. can get your account banned');
+      Logger.warn('use at your own risk');
       this.search = new TwitterSearchClient(this.client, runtime);
     }
 
@@ -48,13 +49,22 @@ class TwitterManager {
 
     // console.log('TwitterManager constructor end');
   }
+
+  // TODO stop the manager
+  // TODO get current state of the manager
+  // TODO get the queue length
+  // TODO get the manager's health
+  // TODO count the errors
 }
 
 export const TwitterClientInterface: Client = {
+  // one loop to start all actions, so that can easy stop the client
   async start(runtime: IAgentRuntime) {
     const twitterConfig: TwitterConfig = await validateTwitterConfig(runtime);
 
-    elizaLogger.log('Twitter client started');
+    elizaLogger.log(
+      `Twitter client started username=${twitterConfig.TWITTER_USERNAME}`,
+    );
 
     const manager = new TwitterManager(runtime, twitterConfig);
 

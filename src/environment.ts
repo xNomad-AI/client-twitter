@@ -76,7 +76,11 @@ export const twitterEnvSchema = z.object({
   ACTION_TIMELINE_TYPE: z
     .nativeEnum(ActionTimelineType)
     .default(ActionTimelineType.ForYou),
-  HTTP_PROXY: z.string().optional(),
+  TWITTER_HTTP_PROXY: z.string().optional(),
+
+  TWITTER_COOKIES_AUTH_TOKEN: z.string().optional(),
+  TWITTER_COOKIES_CT0: z.string().optional(),
+  TWITTER_COOKIES_GUEST_ID: z.string().optional(),
 });
 
 export type TwitterConfig = z.infer<typeof twitterEnvSchema>;
@@ -227,7 +231,22 @@ export async function validateTwitterConfig(
         runtime.getSetting('ACTION_TIMELINE_TYPE') ||
         process.env.ACTION_TIMELINE_TYPE,
 
-      HTTP_PROXY: runtime.getSetting('HTTP_PROXY') || process.env.HTTP_PROXY,
+      TWITTER_HTTP_PROXY:
+        runtime.getSetting('TWITTER_HTTP_PROXY') ||
+        process.env.TWITTER_HTTP_PROXY,
+
+      // cookies settings
+      TWITTER_COOKIES_AUTH_TOKEN:
+        runtime.getSetting('TWITTER_COOKIES_AUTH_TOKEN') ||
+        process.env.TWITTER_COOKIES_AUTH_TOKEN,
+
+      TWITTER_COOKIES_CT0:
+        runtime.getSetting('TWITTER_COOKIES_CT0') ||
+        process.env.TWITTER_COOKIES_CT0,
+
+      TWITTER_COOKIES_GUEST_ID:
+        runtime.getSetting('TWITTER_COOKIES_GUEST_ID') ||
+        process.env.TWITTER_COOKIES_GUEST_ID,
     };
 
     return twitterEnvSchema.parse(twitterConfig);
