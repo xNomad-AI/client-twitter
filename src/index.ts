@@ -5,7 +5,8 @@ import { TwitterInteractionClient } from './interactions.ts';
 import { TwitterPostClient } from './post.ts';
 import { TwitterSearchClient } from './search.ts';
 import { TwitterSpaceClient } from './spaces.ts';
-import { Logger } from './settings/index.ts';
+import { getCurrentAgentTwitterAccountStatus, Logger, SETTINGS } from './settings/index.ts';
+import { TwitterClientStatus } from './monitor/state.ts';
 
 /**
  * A manager that orchestrates all specialized Twitter logic:
@@ -62,12 +63,22 @@ export const TwitterClientInterface: Client = {
   async start(runtime: IAgentRuntime) {
     const twitterConfig: TwitterConfig = await validateTwitterConfig(runtime);
 
-    elizaLogger.log(
-      `Twitter client started username=${twitterConfig.TWITTER_USERNAME}`,
-    );
+    Logger.debug(`Twitter client started username=${twitterConfig.TWITTER_USERNAME}`);
+
+    // only if the status is stopped can start a new client
+    if (SETTINGS.account[twitterConfig.TWITTER_USERNAME] && 
+      SETTINGS.account[twitterConfig.TWITTER_USERNAME].status !== TwitterClientStatus.STOPPED
+    ) {
+      const msg = `Twitter client ${twitterConfig.TWITTER_USERNAME} is not stopped, cannot start, status=${SETTINGS.account[twitterConfig.TWITTER_USERNAME]?.status}`;
+      throw new Error(msg);
+    }
+
+    // TODO if twitter username change
+    SETTINGS.agent[runtime.agentId] = twitterConfig.TWITTER_USERNAME;
 
     const manager = new TwitterManager(runtime, twitterConfig);
 
+    // TODO fix transaction issue
     // Initialize login/session
     await manager.client.init();
 
@@ -87,11 +98,47 @@ export const TwitterClientInterface: Client = {
       manager.space.startPeriodicSpaceCheck();
     }
 
+    SETTINGS.account[twitterConfig.TWITTER_USERNAME].status = TwitterClientStatus.RUNNING;
+    SETTINGS.account[twitterConfig.TWITTER_USERNAME].manager = manager;
     return manager;
   },
 
   async stop(_runtime: IAgentRuntime) {
-    elizaLogger.warn('Twitter client does not support stopping yet');
+    if (getCurrentAgentTwitterAccountStatus(_runtime.agentId) === TwitterClientStatus.RUNNING) {
+      const username = SETTINGS.agent[_runtime.agentId];
+      SETTINGS.account[username].status = TwitterClientStatus.STOPPING;
+      const manager: TwitterManager | null = SETTINGS.account[username].manager;
+      let maxCheckTimes = 60;
+
+      while (maxCheckTimes > 0) {
+        maxCheckTimes--;
+        // 2s
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        let ok = await manager.post.stop();
+        if (!ok) continue;
+
+        if (manager.space) await manager.space.stopSpace();
+        if (manager.search) await manager.search.stop();
+
+        ok = await manager.interaction.stop()
+        if (!ok) continue;
+
+        break;
+      }
+
+      if (maxCheckTimes === 0) {
+        throw new Error("Twitter client failed to stop, please try again");
+      } else {
+        // should release the manager from global settings
+        SETTINGS.account[username].manager = null;
+        SETTINGS.account[username].status = TwitterClientStatus.STOPPED;
+      }
+    } else {
+      Logger.warn(
+        `Twitter client ${_runtime.agentId} is not running, cannot stop`,
+      );
+    };
   },
 };
 

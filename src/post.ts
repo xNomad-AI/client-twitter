@@ -1,4 +1,4 @@
-import type { Tweet } from 'agent-twitter-client';
+import { type Tweet } from 'agent-twitter-client';
 import {
   composeContext,
   generateText,
@@ -31,6 +31,7 @@ import {
 import type { State } from '@elizaos/core';
 import type { ActionResponse } from '@elizaos/core';
 import { MediaData } from './types.ts';
+import { isAgentTwitterAccountStopped, isAgentTwitterAccountStopping, Logger } from './settings/index.ts';
 
 const MAX_TIMELINES_TO_FETCH = 15;
 
@@ -99,12 +100,23 @@ export class TwitterPostClient {
   twitterUsername: string;
   private isProcessing = false;
   private lastProcessTime = 0;
-  private stopProcessingActions = false;
   private isDryRun: boolean;
   private discordClientForApproval: Client;
   private approvalRequired = false;
   private discordApprovalChannelId: string;
   private approvalCheckInterval: number;
+  private runPendingTweetCheckInterval: NodeJS.Timeout;
+
+  private backendTaskStatus: {
+    // 0 stopped, 1 running, 2 completed
+    generateNewTweet: number;
+    processTweetActions: number;
+    runPendingTweetCheck: number
+  } = {
+    generateNewTweet: 2,
+    processTweetActions: 2,
+    runPendingTweetCheck: 2,
+  };
 
   constructor(client: ClientBase, runtime: IAgentRuntime) {
     this.client = client;
@@ -228,6 +240,9 @@ export class TwitterPostClient {
     }
 
     const generateNewTweetLoop = async () => {
+      if (this.backendTaskStatus.generateNewTweet === 0) return;
+      this.backendTaskStatus.generateNewTweet = 1;
+
       const lastPost = await this.runtime.cacheManager.get<{
         timestamp: number;
       }>('twitter/' + this.twitterUsername + '/lastPost');
@@ -243,6 +258,7 @@ export class TwitterPostClient {
         await this.generateNewTweet();
       }
 
+      this.backendTaskStatus.generateNewTweet = 2;
       setTimeout(() => {
         generateNewTweetLoop(); // Set up next iteration
       }, delay);
@@ -253,9 +269,12 @@ export class TwitterPostClient {
     const processActionsLoop = async () => {
       const actionInterval = this.client.twitterConfig.ACTION_INTERVAL; // Defaults to 5 minutes
 
-      while (!this.stopProcessingActions) {
+      while (!(this.backendTaskStatus.processTweetActions === 0)) {
         try {
+          this.backendTaskStatus.processTweetActions = 1;
           const results = await this.processTweetActions();
+          this.backendTaskStatus.processTweetActions = 2;
+
           if (results) {
             elizaLogger.log(`Processed ${results.length} tweets`);
             elizaLogger.log(
@@ -294,9 +313,13 @@ export class TwitterPostClient {
   }
 
   private runPendingTweetCheckLoop() {
-    setInterval(async () => {
+    const interval = setInterval(async () => {
+      this.backendTaskStatus.runPendingTweetCheck = 1;
       await this.handlePendingTweet();
+      this.backendTaskStatus.runPendingTweetCheck = 2;
     }, this.approvalCheckInterval);
+
+    this.runPendingTweetCheckInterval = interval;
   }
 
   createTweetObject(
@@ -1149,8 +1172,35 @@ export class TwitterPostClient {
     }
   }
 
-  async stop() {
-    this.stopProcessingActions = true;
+  // if false, should stop again
+  async stop(): Promise<boolean> {
+    // TODO loop check
+    if (this.backendTaskStatus.generateNewTweet === 2) {
+      this.backendTaskStatus.generateNewTweet = 0;
+      Logger.info("task generateNewTweet stopped");
+    } else if (this.backendTaskStatus.generateNewTweet === 0) {
+      // stopped
+    } else {
+      return false;
+    }
+
+    if (this.backendTaskStatus.processTweetActions === 2) {
+      this.backendTaskStatus.processTweetActions = 0;
+      Logger.info("task processTweetActions stopped");
+    } else if (this.backendTaskStatus.processTweetActions === 0) {
+      // stopped
+    } else {
+      return false;
+    }
+
+    if (this.runPendingTweetCheckInterval) {
+      clearInterval(this.runPendingTweetCheckInterval);
+      this.runPendingTweetCheckInterval = null;
+      this.backendTaskStatus.runPendingTweetCheck = 0;
+      Logger.info("task runPendingTweetCheckInterval stopped");
+    }
+
+    return true;
   }
 
   private async sendForApproval(

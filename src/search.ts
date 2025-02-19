@@ -14,6 +14,7 @@ import {
 import { stringToUuid } from '@elizaos/core';
 import type { ClientBase } from './base';
 import { buildConversationThread, sendTweet, wait } from './utils.ts';
+import { Logger } from './settings/index.ts';
 
 const twitterSearchTemplate =
   `{{timeline}}
@@ -48,10 +49,30 @@ export class TwitterSearchClient {
   twitterUsername: string;
   private respondedTweets: Set<string> = new Set();
 
+  private backendTaskStatus: {
+    // 0 stopped, 1 running, 2 completed
+    engageWithSearchTerms: number;
+  } = {
+    engageWithSearchTerms: 2,
+  };
+
   constructor(client: ClientBase, runtime: IAgentRuntime) {
     this.client = client;
     this.runtime = runtime;
     this.twitterUsername = this.client.twitterConfig.TWITTER_USERNAME;
+  }
+
+  async stop() {
+    if (this.backendTaskStatus.engageWithSearchTerms === 2) {
+      this.backendTaskStatus.engageWithSearchTerms = 0;
+      Logger.info("task engageWithSearchTerms stopped");
+    } else if (this.backendTaskStatus.engageWithSearchTerms === 0) {
+      // stopped
+    } else {
+      return false;
+    }
+
+    return true;
   }
 
   async start() {
@@ -59,11 +80,16 @@ export class TwitterSearchClient {
   }
 
   private engageWithSearchTermsLoop() {
+    if (this.backendTaskStatus.engageWithSearchTerms === 0) return;
+    this.backendTaskStatus.engageWithSearchTerms = 1;
+
     this.engageWithSearchTerms().then();
     const randomMinutes = Math.floor(Math.random() * (120 - 60 + 1)) + 60;
     elizaLogger.log(
       `Next twitter search scheduled in ${randomMinutes} minutes`,
     );
+    this.backendTaskStatus.engageWithSearchTerms = 2;
+
     setTimeout(
       () => this.engageWithSearchTermsLoop(),
       randomMinutes * 60 * 1000,
