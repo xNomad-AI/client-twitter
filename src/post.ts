@@ -1177,7 +1177,7 @@ export class TwitterPostClient {
     // TODO loop check
     if (this.backendTaskStatus.generateNewTweet === 2) {
       this.backendTaskStatus.generateNewTweet = 0;
-      Logger.info("task generateNewTweet stopped");
+      Logger.info(`${this.twitterUsername} task generateNewTweet stopped`);
     } else if (this.backendTaskStatus.generateNewTweet === 0) {
       // stopped
     } else {
@@ -1186,7 +1186,7 @@ export class TwitterPostClient {
 
     if (this.backendTaskStatus.processTweetActions === 2) {
       this.backendTaskStatus.processTweetActions = 0;
-      Logger.info("task processTweetActions stopped");
+      Logger.info(`${this.twitterUsername} task processTweetActions stopped`);
     } else if (this.backendTaskStatus.processTweetActions === 0) {
       // stopped
     } else {
@@ -1197,7 +1197,7 @@ export class TwitterPostClient {
       clearInterval(this.runPendingTweetCheckInterval);
       this.runPendingTweetCheckInterval = null;
       this.backendTaskStatus.runPendingTweetCheck = 0;
-      Logger.info("task runPendingTweetCheckInterval stopped");
+      Logger.info(`${this.twitterUsername} task runPendingTweetCheckInterval stopped`);
     }
 
     return true;

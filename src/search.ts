@@ -65,7 +65,8 @@ export class TwitterSearchClient {
   async stop() {
     if (this.backendTaskStatus.engageWithSearchTerms === 2) {
       this.backendTaskStatus.engageWithSearchTerms = 0;
-      Logger.info("task engageWithSearchTerms stopped");
+      const twitterUsername = this.client.twitterConfig.TWITTER_USERNAME;
+      Logger.info(`${twitterUsername} task engageWithSearchTerms stopped`);
     } else if (this.backendTaskStatus.engageWithSearchTerms === 0) {
       // stopped
     } else {

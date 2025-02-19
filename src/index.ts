@@ -51,7 +51,6 @@ class TwitterManager {
     // console.log('TwitterManager constructor end');
   }
 
-  // TODO stop the manager
   // TODO get current state of the manager
   // TODO get the queue length
   // TODO get the manager's health
@@ -118,11 +117,11 @@ export const TwitterClientInterface: Client = {
         let ok = await manager.post.stop();
         if (!ok) continue;
 
-        if (manager.space) await manager.space.stopSpace();
-        if (manager.search) await manager.search.stop();
-
         ok = await manager.interaction.stop()
         if (!ok) continue;
+
+        if (manager.space) await manager.space.stopSpace();
+        if (manager.search) await manager.search.stop();
 
         break;
       }
@@ -133,6 +132,7 @@ export const TwitterClientInterface: Client = {
         // should release the manager from global settings
         SETTINGS.account[username].manager = null;
         SETTINGS.account[username].status = TwitterClientStatus.STOPPED;
+        Logger.info(`Twitter client ${_runtime.agentId} stopped`);
       }
     } else {
       Logger.warn(

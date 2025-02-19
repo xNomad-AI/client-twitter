@@ -19,6 +19,7 @@ import {
 } from '@elizaos/core';
 import type { ClientBase } from './base';
 import { buildConversationThread, sendTweet, wait } from './utils.ts';
+import { Logger } from './settings/index.ts';
 
 export const twitterMessageHandlerTemplate =
   `
@@ -112,7 +113,13 @@ export class TwitterInteractionClient {
   }
 
   async stop() {
-    clearInterval(this.handleTwitterInteractionsInterval);
+    if (this.handleTwitterInteractionsInterval) {
+      clearInterval(this.handleTwitterInteractionsInterval);
+      this.handleTwitterInteractionsInterval = null;
+      const twitterUsername = this.client.twitterConfig.TWITTER_USERNAME;
+      Logger.info(`${twitterUsername} task handleTwitterInteractions stopped`);
+    }
+
     return true;
   }
 

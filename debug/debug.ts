@@ -104,6 +104,16 @@ async function start() {
   for (const runtime of runtimes) {
     await TwitterClientInterface.start(runtime);
   }
+
+  // Run for 5 minutes
+  await new Promise((resolve) => setTimeout(resolve, 1000 * 60 * 5));
+
+  console.log('start to stop the client');
+  for (const runtime of runtimes) {
+    await TwitterClientInterface.stop(runtime);
+  }
+
+  return "end";
 }
 
 start().then(console.log).catch(console.error);

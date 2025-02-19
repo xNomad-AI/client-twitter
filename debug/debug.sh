@@ -8,6 +8,6 @@ pnpm add @elizaos/adapter-sqlite@0.1.9 better-sqlite3@11.8.1
 
 # cp .env.example .env
 # add required env to .env
-# source .env
+source .env
 
 pnpm debug
