@@ -6,7 +6,6 @@ import {
   type State,
   type UUID,
   getEmbeddingZeroVector,
-  elizaLogger,
   stringToUuid,
   ActionTimelineType,
 } from '@elizaos/core';
@@ -20,6 +19,7 @@ import type { TwitterConfig } from './environment.ts';
 import { CustomScraper } from './scraper.ts';
 import { Logger, SETTINGS } from './settings/index.ts';
 import { TwitterClientState } from './monitor/state.ts';
+import pino from 'pino';
 
 export function extractAnswer(text: string): string {
   const startIndex = text.indexOf('Answer: ') + 8;
@@ -99,6 +99,8 @@ export class ClientBase extends EventEmitter {
   requestQueue: RequestQueue = new RequestQueue();
 
   profile: TwitterProfile | null;
+
+  logger: pino.Logger<string, boolean>;
 
   async getTweet(tweetId: string): Promise<Tweet> {
     const cachedTweet = await this.runtimeHelper.getCachedTweet(tweetId);
@@ -225,10 +227,13 @@ export class ClientBase extends EventEmitter {
   constructor(runtime: IAgentRuntime, twitterConfig: TwitterConfig) {
     super();
     this.runtime = runtime;
-    this.runtimeHelper = new RuntimeHelper(runtime);
     this.twitterConfig = twitterConfig;
-
+    this.logger = Logger.child({
+      twitterName: this.twitterConfig.TWITTER_USERNAME,
+    });
+    this.runtimeHelper = new RuntimeHelper(runtime, this.logger);
     const username = twitterConfig.TWITTER_USERNAME;
+
     if (ClientBase._twitterClients[username]) {
       this.twitterClient = ClientBase._twitterClients[username];
     } else {
@@ -255,7 +260,7 @@ export class ClientBase extends EventEmitter {
     const ct0 = this.twitterConfig.TWITTER_COOKIES_CT0;
     const guestId = this.twitterConfig.TWITTER_COOKIES_GUEST_ID;
 
-    Logger.debug('Waiting for Twitter login cookie init');
+    this.logger.debug('Waiting for Twitter login cookie init');
     SETTINGS.account[username] = {
       ...SETTINGS.account[username],
       state: TwitterClientState.TWITTER_LOGIN_COOKIE_INIT,
@@ -279,7 +284,7 @@ export class ClientBase extends EventEmitter {
       createTwitterCookies(authToken, ct0, guestId);
 
     if (cachedCookies) {
-      elizaLogger.info('Using cached cookies');
+      this.logger.info('Using cached cookies');
       await this.setCookiesFromArray(cachedCookies);
     }
   }
@@ -288,7 +293,7 @@ export class ClientBase extends EventEmitter {
     const username = this.twitterConfig.TWITTER_USERNAME;
     let retries = this.twitterConfig.TWITTER_RETRY_LIMIT;
 
-    Logger.debug('Waiting for Twitter login');
+    this.logger.debug('Waiting for Twitter login');
     SETTINGS.account[username] = {
       ...SETTINGS.account[username],
       state: TwitterClientState.TWITTER_LOGIN,
@@ -298,7 +303,7 @@ export class ClientBase extends EventEmitter {
       try {
         if (await this.twitterClient.isLoggedIn()) {
           // cookies are valid, no login required
-          Logger.info('Successfully logged in.');
+          this.logger.info('Successfully logged in.');
           break;
         } else {
           await this.twitterClient.login(
@@ -309,8 +314,8 @@ export class ClientBase extends EventEmitter {
           );
           if (await this.twitterClient.isLoggedIn()) {
             // fresh login, store new cookies
-            Logger.info('Successfully logged in.');
-            Logger.info('Caching cookies');
+            this.logger.info('Successfully logged in.');
+            this.logger.info('Caching cookies');
             await this.runtimeHelper.cacheCookies(
               username,
               await this.twitterClient.getCookies(),
@@ -319,16 +324,16 @@ export class ClientBase extends EventEmitter {
           }
         }
       } catch (error) {
-        Logger.error(`Login attempt failed: ${error.message}`);
+        this.logger.error(`Login attempt failed: ${error.message}`);
       }
 
       retries--;
-      Logger.error(
+      this.logger.error(
         `Failed to login to Twitter. Retrying... (${retries} attempts left)`,
       );
 
       if (retries === 0) {
-        Logger.error('Max retries reached. Exiting login process.');
+        this.logger.error('Max retries reached. Exiting login process.');
         throw new Error('Twitter login failed after maximum retries.');
       }
 
@@ -339,7 +344,7 @@ export class ClientBase extends EventEmitter {
   private async initTwitterProfile() {
     const username = this.twitterConfig.TWITTER_USERNAME;
 
-    Logger.debug('Waiting for Twitter profile init');
+    this.logger.debug('Waiting for Twitter profile init');
     SETTINGS.account[username] = {
       ...SETTINGS.account[username],
       state: TwitterClientState.TWITTER_PROFILE_INIT,
@@ -348,8 +353,8 @@ export class ClientBase extends EventEmitter {
     this.profile = await this.fetchProfile(username);
 
     if (this.profile) {
-      Logger.debug('Twitter user ID:', this.profile.id);
-      Logger.debug('Twitter loaded:', JSON.stringify(this.profile, null, 10));
+      this.logger.debug('Twitter user ID:', this.profile.id);
+      this.logger.debug('Twitter loaded:', JSON.stringify(this.profile, null, 10));
       // Store profile info for use in responses
       this.runtimeHelper.setTwitterProfile(this.profile);
     } else {
@@ -366,7 +371,7 @@ export class ClientBase extends EventEmitter {
   }
 
   async fetchOwnPosts(count: number): Promise<Tweet[]> {
-    elizaLogger.debug('fetching own posts');
+    this.logger.debug('fetching own posts');
     const homeTimeline = await this.twitterClient.getUserTweets(
       this.profile.id,
       count,
@@ -382,22 +387,22 @@ export class ClientBase extends EventEmitter {
     count: number,
     following?: boolean,
   ): Promise<Tweet[]> {
-    Logger.debug('fetching home timeline');
+    this.logger.debug('fetching home timeline');
     const homeTimeline = following
       ? await this.twitterClient.fetchFollowingTimeline(count, [])
       : await this.twitterClient.fetchHomeTimeline(count, []);
 
-    // Logger.debug(homeTimeline, { depth: Number.POSITIVE_INFINITY });
+    // this.logger.debug(homeTimeline, { depth: Number.POSITIVE_INFINITY });
     const processedTimeline = homeTimeline
       .filter((t) => t.__typename !== 'TweetWithVisibilityResults') // what's this about?
       .map((tweet) => this.parseTweet(tweet));
 
-    //elizaLogger.debug("process homeTimeline", processedTimeline);
+    //this.logger.debug("process homeTimeline", processedTimeline);
     return processedTimeline;
   }
 
   async fetchTimelineForActions(count: number): Promise<Tweet[]> {
-    elizaLogger.debug('fetching timeline for actions');
+    this.logger.debug('fetching timeline for actions');
 
     const agentUsername = this.twitterConfig.TWITTER_USERNAME;
 
@@ -444,11 +449,11 @@ export class ClientBase extends EventEmitter {
         );
         return (result ?? { tweets: [] }) as QueryTweetsResponse;
       } catch (error) {
-        elizaLogger.error('Error fetching search tweets:', error);
+        this.logger.error('Error fetching search tweets:', error);
         return { tweets: [] };
       }
     } catch (error) {
-      elizaLogger.error('Error fetching search tweets:', error);
+      this.logger.error('Error fetching search tweets:', error);
       return { tweets: [] };
     }
   }
@@ -456,7 +461,7 @@ export class ClientBase extends EventEmitter {
   private async populateTimeline() {
     const username = this.twitterConfig.TWITTER_USERNAME;
 
-    Logger.debug('populating timeline...');
+    this.logger.debug('populating timeline...');
     SETTINGS.account[username] = {
       ...SETTINGS.account[username],
       state: TwitterClientState.TWITTER_POPULATE_TIMELINE,
@@ -495,7 +500,8 @@ export class ClientBase extends EventEmitter {
         !existingMemoryIds.has(this.runtimeHelper.getTweetMemoryId(tweet.id)),
     );
 
-    Logger.debug({
+    
+    this.logger.debug({
       processingTweets: tweetsToSave.map((tweet) => tweet.id).join(','),
     });
 
@@ -583,7 +589,7 @@ export class ClientBase extends EventEmitter {
 
 class RuntimeHelper {
   // TODO add runtime helper to base class
-  constructor(private runtime: IAgentRuntime) {}
+  constructor(private runtime: IAgentRuntime, private logger: pino.Logger<string, boolean>) {}
 
   async saveRequestMessage(
     message: Memory,
@@ -601,7 +607,7 @@ class RuntimeHelper {
         recentMessage.length > 0 &&
         recentMessage[0].content === message.content
       ) {
-        Logger.debug('Message already saved', recentMessage[0].id);
+        this.logger.debug('Message already saved', recentMessage[0].id);
       } else {
         await this.runtime.messageManager.createMemory({
           ...message,
@@ -710,7 +716,7 @@ class RuntimeHelper {
   ) {
     // Save the missing tweets as memories
     for (const tweet of tweetsToSave) {
-      Logger.debug('Saving Tweet', tweet.id);
+      this.logger.debug('Saving Tweet', tweet.id);
 
       const roomId = stringToUuid(
         tweet.conversationId + '-' + this.runtime.agentId,
@@ -758,7 +764,7 @@ class RuntimeHelper {
         inReplyTo: inReplyTo(),
       } as Content;
 
-      Logger.debug('Creating memory for tweet', tweet.id);
+      this.logger.debug('Creating memory for tweet', tweet.id);
 
       if (options.checkMemoryExists) {
         // check if it already exists
@@ -767,7 +773,7 @@ class RuntimeHelper {
         );
 
         if (memory) {
-          Logger.info('Memory already exists, skipping timeline population');
+          this.logger.info('Memory already exists, skipping timeline population');
           break;
         }
       }
@@ -828,14 +834,14 @@ class RuntimeHelper {
             ),
         );
 
-        Logger.debug({
+        this.logger.debug({
           processingTweets: tweetsToSave.map((tweet) => tweet.id).join(','),
         });
 
         // Save the missing tweets as memories
         await this.saveTweets(profile, tweetsToSave);
 
-        Logger.debug(
+        this.logger.debug(
           `Populated ${tweetsToSave.length} missing tweets from the cache.`,
         );
         return { ret: true };

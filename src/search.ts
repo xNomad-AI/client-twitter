@@ -1,5 +1,5 @@
 import { SearchMode } from 'agent-twitter-client';
-import { composeContext, elizaLogger } from '@elizaos/core';
+import { composeContext } from '@elizaos/core';
 import { generateMessageResponse, generateText } from '@elizaos/core';
 import { messageCompletionFooter } from '@elizaos/core';
 import {
@@ -14,7 +14,7 @@ import {
 import { stringToUuid } from '@elizaos/core';
 import type { ClientBase } from './base';
 import { buildConversationThread, sendTweet, wait } from './utils.ts';
-import { Logger } from './settings/index.ts';
+import pino from 'pino';
 
 const twitterSearchTemplate =
   `{{timeline}}
@@ -56,17 +56,20 @@ export class TwitterSearchClient {
     engageWithSearchTerms: 2,
   };
 
+  private logger: pino.Logger<string, boolean>;
+
   constructor(client: ClientBase, runtime: IAgentRuntime) {
     this.client = client;
     this.runtime = runtime;
     this.twitterUsername = this.client.twitterConfig.TWITTER_USERNAME;
+    this.logger = client.logger;
   }
 
   async stop() {
     if (this.backendTaskStatus.engageWithSearchTerms === 2) {
       this.backendTaskStatus.engageWithSearchTerms = 0;
       const twitterUsername = this.client.twitterConfig.TWITTER_USERNAME;
-      Logger.info(`${twitterUsername} task engageWithSearchTerms stopped`);
+      this.logger.info(`${twitterUsername} task engageWithSearchTerms stopped`);
     } else if (this.backendTaskStatus.engageWithSearchTerms === 0) {
       // stopped
     } else {
@@ -86,7 +89,7 @@ export class TwitterSearchClient {
 
     this.engageWithSearchTerms().then();
     const randomMinutes = Math.floor(Math.random() * (120 - 60 + 1)) + 60;
-    elizaLogger.log(
+    this.logger.log(
       `Next twitter search scheduled in ${randomMinutes} minutes`,
     );
     this.backendTaskStatus.engageWithSearchTerms = 2;
@@ -98,13 +101,13 @@ export class TwitterSearchClient {
   }
 
   private async engageWithSearchTerms() {
-    elizaLogger.log('Engaging with search terms');
+    this.logger.log('Engaging with search terms');
     try {
       const searchTerm = [...this.runtime.character.topics][
         Math.floor(Math.random() * this.runtime.character.topics.length)
       ];
 
-      elizaLogger.log('Fetching search tweets');
+      this.logger.log('Fetching search tweets');
       // TODO: we wait 5 seconds here to avoid getting rate limited on startup, but we should queue
       await new Promise((resolve) => setTimeout(resolve, 5000));
       const recentTweets = await this.client.fetchSearchTweets(
@@ -112,7 +115,7 @@ export class TwitterSearchClient {
         20,
         SearchMode.Top,
       );
-      elizaLogger.log('Search tweets fetched');
+      this.logger.log('Search tweets fetched');
 
       const homeTimeline = await this.client.fetchHomeTimeline(50);
 
@@ -132,7 +135,7 @@ export class TwitterSearchClient {
         .slice(0, 20);
 
       if (slicedTweets.length === 0) {
-        elizaLogger.log(
+        this.logger.log(
           'No valid tweets found for the search term',
           searchTerm,
         );
@@ -180,15 +183,15 @@ export class TwitterSearchClient {
       );
 
       if (!selectedTweet) {
-        elizaLogger.warn('No matching tweet found for the selected ID');
-        elizaLogger.log('Selected tweet ID:', tweetId);
+        this.logger.warn('No matching tweet found for the selected ID');
+        this.logger.log('Selected tweet ID:', tweetId);
         return;
       }
 
-      elizaLogger.log('Selected tweet to reply to:', selectedTweet?.text);
+      this.logger.log('Selected tweet to reply to:', selectedTweet?.text);
 
       if (selectedTweet.username === this.twitterUsername) {
-        elizaLogger.log('Skipping tweet from bot itself');
+        this.logger.log('Skipping tweet from bot itself');
         return;
       }
 
@@ -227,7 +230,7 @@ export class TwitterSearchClient {
       };
 
       if (!message.content.text) {
-        elizaLogger.warn('Returning: No response text found');
+        this.logger.warn('Returning: No response text found');
         return;
       }
 
@@ -289,11 +292,11 @@ export class TwitterSearchClient {
       const response = responseContent;
 
       if (!response.text) {
-        elizaLogger.warn('Returning: No response text found');
+        this.logger.warn('Returning: No response text found');
         return;
       }
 
-      elizaLogger.log(
+      this.logger.log(
         `Bot would respond to tweet ${selectedTweet.id} with: ${response.text}`,
       );
       try {

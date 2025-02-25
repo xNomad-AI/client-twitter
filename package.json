@@ -12,9 +12,11 @@
         "dist"
     ],
     "dependencies": {
+        "@elizaos/adapter-sqlite": "0.1.9",
         "@elizaos/core": "0.1.9",
         "agent-twitter-client": "github:jinbangyi/agent-twitter-client#main",
         "axios": "^1.7.9",
+        "better-sqlite3": "11.8.1",
         "discord.js": "14.16.3",
         "glob": "11.0.0",
         "https-proxy-agent": "^7.0.6",

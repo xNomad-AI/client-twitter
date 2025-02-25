@@ -32,11 +32,11 @@ class TwitterManager {
 
     // Optional search logic (enabled if TWITTER_SEARCH_ENABLE is true)
     if (twitterConfig.TWITTER_SEARCH_ENABLE) {
-      Logger.warn('Twitter/X client running in a mode that:');
-      Logger.warn('1. violates consent of random users');
-      Logger.warn('2. burns your rate limit');
-      Logger.warn('3. can get your account banned');
-      Logger.warn('use at your own risk');
+      this.client.logger.warn('Twitter/X client running in a mode that:');
+      this.client.logger.warn('1. violates consent of random users');
+      this.client.logger.warn('2. burns your rate limit');
+      this.client.logger.warn('3. can get your account banned');
+      this.client.logger.warn('use at your own risk');
       this.search = new TwitterSearchClient(this.client, runtime);
     }
 

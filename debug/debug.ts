@@ -13,6 +13,7 @@ import Database from 'better-sqlite3';
 
 import { TwitterClientInterface } from '../src/index';
 import { wrapperFetchFunction } from '../src/scraper';
+import { exit } from 'process';
 
 type UUID = `${string}-${string}-${string}-${string}-${string}`;
 const baseDir = path.resolve(process.cwd(), 'data');
@@ -116,4 +117,7 @@ async function start() {
   return "end";
 }
 
-start().then(console.log).catch(console.error);
+start().then( res => {
+  console.log(res);
+  exit(0)
+}).catch(console.error);
