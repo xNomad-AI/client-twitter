@@ -24,7 +24,7 @@ class TwitterManager {
   interaction: TwitterInteractionClient;
   space?: TwitterSpaceClient;
 
-  constructor(runtime: IAgentRuntime, twitterConfig: TwitterConfig) {
+  constructor(private runtime: IAgentRuntime, twitterConfig: TwitterConfig) {
     // Pass twitterConfig to the base client
     this.client = new ClientBase(runtime, twitterConfig);
 
@@ -56,6 +56,10 @@ class TwitterManager {
   // TODO get the queue length
   // TODO get the manager's health
   // TODO count the errors
+
+  async stop() {
+    return stop(this.runtime);
+  }
 }
 
 export const TwitterClientInterface: Client = {
@@ -115,49 +119,53 @@ export const TwitterClientInterface: Client = {
   },
 
   async stop(_runtime: IAgentRuntime) {
-    if (getCurrentAgentTwitterAccountStatus(_runtime.agentId) === TwitterClientStatus.RUNNING) {
-      const twitterConfig = SETTINGS.agent[_runtime.agentId];
-      const username = twitterConfig.TWITTER_USERNAME;
-      const proxy = twitterConfig.TWITTER_HTTP_PROXY ?? "";
-
-      twitterAccountStatus.labels(username, proxy).set(2);
-
-      SETTINGS.account[username].status = TwitterClientStatus.STOPPING;
-      const manager: TwitterManager | null = SETTINGS.account[username].manager;
-      let maxCheckTimes = 60;
-
-      while (maxCheckTimes > 0) {
-        maxCheckTimes--;
-        // 2s
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-
-        let ok = await manager.post.stop();
-        if (!ok) continue;
-
-        ok = await manager.interaction.stop()
-        if (!ok) continue;
-
-        if (manager.space) await manager.space.stopSpace();
-        if (manager.search) await manager.search.stop();
-
-        break;
-      }
-
-      if (maxCheckTimes === 0) {
-        throw new Error(`Twitter client ${username} failed to stop, please try again`);
-      } else {
-        // should release the manager from global settings
-        SETTINGS.account[username].manager = null;
-        SETTINGS.account[username].status = TwitterClientStatus.STOPPED;
-        twitterAccountStatus.labels(username, proxy).set(0);
-        Logger.info(`Twitter client ${_runtime.agentId} stopped`);
-      }
-    } else {
-      Logger.warn(
-        `Twitter client ${_runtime.agentId} is not running, cannot stop`,
-      );
-    };
+    return stop(_runtime);
   },
+};
+
+async function stop(_runtime: IAgentRuntime) {
+  if (getCurrentAgentTwitterAccountStatus(_runtime.agentId) === TwitterClientStatus.RUNNING) {
+    const twitterConfig = SETTINGS.agent[_runtime.agentId];
+    const username = twitterConfig.TWITTER_USERNAME;
+    const proxy = twitterConfig.TWITTER_HTTP_PROXY ?? "";
+
+    twitterAccountStatus.labels(username, proxy).set(2);
+
+    SETTINGS.account[username].status = TwitterClientStatus.STOPPING;
+    const manager: TwitterManager | null = SETTINGS.account[username].manager;
+    let maxCheckTimes = 60;
+
+    while (maxCheckTimes > 0) {
+      maxCheckTimes--;
+      // 2s
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      let ok = await manager.post.stop();
+      if (!ok) continue;
+
+      ok = await manager.interaction.stop()
+      if (!ok) continue;
+
+      if (manager.space) await manager.space.stopSpace();
+      if (manager.search) await manager.search.stop();
+
+      break;
+    }
+
+    if (maxCheckTimes === 0) {
+      throw new Error(`Twitter client ${username} failed to stop, please try again`);
+    } else {
+      // should release the manager from global settings
+      SETTINGS.account[username].manager = null;
+      SETTINGS.account[username].status = TwitterClientStatus.STOPPED;
+      twitterAccountStatus.labels(username, proxy).set(0);
+      Logger.info(`Twitter client ${_runtime.agentId} stopped`);
+    }
+  } else {
+    Logger.warn(
+      `Twitter client ${_runtime.agentId} is not running, cannot stop`,
+    );
+  };
 };
 
 export default TwitterClientInterface;

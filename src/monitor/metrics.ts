@@ -31,4 +31,3 @@ export const twitterPostCount = new client.Counter({
   // registers: [register],
   labelNames: ['twitterName'],
 });
-twitterPostCount.reset();
