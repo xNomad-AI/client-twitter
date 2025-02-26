@@ -50,8 +50,7 @@
         "format": "prettier --write \"src/**/*.ts\" \"__tests__/**/*.ts\" \"debug/**/*.ts\"",
         "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
         "build:debug": "tsup debug/*.ts",
-        "debug": "tsup debug/debug.ts && node dist/debug.js",
-        "postinstall": "pwd && pnpm run build2"
+        "debug": "tsup debug/debug.ts && node dist/debug.js"
     },
     "peerDependencies": {
         "whatwg-url": "7.1.0"
