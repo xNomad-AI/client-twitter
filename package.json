@@ -9,9 +9,9 @@
         "./package.json": "./package.json",
         ".": {
             "import": {
-            "@elizaos/source": "./src/index.ts",
-            "types": "./dist/index.d.ts",
-            "default": "./dist/index.js"
+                "@elizaos/source": "./src/index.ts",
+                "types": "./dist/index.d.ts",
+                "default": "./dist/index.js"
             }
         }
     },

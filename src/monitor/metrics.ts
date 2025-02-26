@@ -1,7 +1,7 @@
 // using prometheus client
 import client from 'prom-client';
 
-export const register = new client.Registry();
+// export const register = new client.Registry();
 
 // client.collectDefaultMetrics({
 //   prefix: 'client_twitter_',
@@ -13,7 +13,7 @@ const prefix = 'client_twitter_';
 export const twitterAccountStatus = new client.Gauge({
   name: `${prefix}twitter_account_status`,
   help: 'twitter account running status, 0 stopped, 1 running, 2 stopping',
-  registers: [register],
+  // registers: [register],
   labelNames: ['twitterName', 'ip']
 });
 
@@ -21,13 +21,13 @@ export const twitterAccountStatus = new client.Gauge({
 export const twitterPostInterval = new client.Gauge({
   name: `${prefix}twitter_post_interval`,
   help: 'max post interval in minutes',
-  registers: [register],
+  // registers: [register],
   labelNames: ['twitterName']
 });
 
 export const twitterPostCount = new client.Counter({
   name: `${prefix}twitter_post_count`,
   help: 'post count',
-  registers: [register],
+  // registers: [register],
   labelNames: ['twitterName'],
 });

@@ -8,7 +8,7 @@ import { TwitterSearchClient } from './search.ts';
 import { TwitterSpaceClient } from './spaces.ts';
 import { getCurrentAgentTwitterAccountStatus, Logger, SETTINGS } from './settings/index.ts';
 import { TwitterClientStatus } from './monitor/state.ts';
-import { twitterAccountStatus, twitterPostInterval, register } from './monitor/metrics.ts';
+import { twitterAccountStatus, twitterPostInterval } from './monitor/metrics.ts';
 
 /**
  * A manager that orchestrates all specialized Twitter logic:
@@ -162,4 +162,4 @@ export const TwitterClientInterface: Client = {
 };
 
 export default TwitterClientInterface;
-export const TwitterMetrics: client.Registry = register;
+// export const TwitterMetrics: client.Registry = register;
