@@ -1,4 +1,5 @@
 import { type Client, type IAgentRuntime } from '@elizaos/core';
+import client from 'prom-client';
 import { ClientBase } from './base.ts';
 import { validateTwitterConfig, type TwitterConfig } from './environment.ts';
 import { TwitterInteractionClient } from './interactions.ts';
@@ -161,4 +162,4 @@ export const TwitterClientInterface: Client = {
 };
 
 export default TwitterClientInterface;
-export const TwitterMetrics = register;
+export const TwitterMetrics: client.Registry = register;
