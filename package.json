@@ -8,6 +8,12 @@
     "exports": {
         "types": "./dist/index.d.ts"
     },
+    "files": [
+        "dist",
+        "src",
+        "*.ts",
+        "*.json"
+    ],
     "dependencies": {
         "@elizaos/core": "0.1.9",
         "agent-twitter-client": "github:jinbangyi/agent-twitter-client#main",
