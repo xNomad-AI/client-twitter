@@ -161,4 +161,4 @@ export const TwitterClientInterface: Client = {
 };
 
 export default TwitterClientInterface;
-export * from './monitor/metrics.ts';
+export * as metrics from './monitor/metrics.ts';
