@@ -31,6 +31,7 @@ import type { State } from '@elizaos/core';
 import type { ActionResponse } from '@elizaos/core';
 import { MediaData } from './types.ts';
 import pino from 'pino';
+import { twitterPostCount } from './monitor/metrics.ts';
 
 const MAX_TIMELINES_TO_FETCH = 15;
 
@@ -471,6 +472,8 @@ export class TwitterPostClient {
           mediaData,
         );
       }
+
+      twitterPostCount.labels(twitterUsername).inc();
 
       const tweet = this.createTweetObject(result, client, twitterUsername);
 

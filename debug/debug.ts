@@ -10,9 +10,11 @@ import {
 } from '@elizaos/core';
 import { SqliteDatabaseAdapter } from '@elizaos/adapter-sqlite';
 import Database from 'better-sqlite3';
+import express from 'express';
 
 import { TwitterClientInterface } from '../src/index';
 import { wrapperFetchFunction } from '../src/scraper';
+import { register } from '../src/monitor/metrics';
 import { exit } from 'process';
 
 type UUID = `${string}-${string}-${string}-${string}-${string}`;
@@ -78,6 +80,26 @@ async function createRuntime(character: Character) {
   return runtime;
 }
 
+async function startServer() {
+  const app = express();
+  const port = process.env.PORT || 3000;
+
+  // Define a route to expose the metrics
+  app.get('/metrics', async (req, res) => {
+      try {
+          res.set('Content-Type', register.contentType);
+          res.end(await register.metrics());
+      } catch (err) {
+          res.status(500).end(err);
+      }
+  });
+
+  // Start the Express server
+  app.listen(port, () => {
+      console.log(`Server listening on http://localhost:${port}`);
+  });
+}
+
 async function start() {
   const characters: Character[] = [
     initCharacter('debug', {
@@ -106,13 +128,17 @@ async function start() {
     await TwitterClientInterface.start(runtime);
   }
 
+  startServer();
+
   // Run for 5 minutes
-  await new Promise((resolve) => setTimeout(resolve, 1000 * 60 * 5));
+  await new Promise((resolve) => setTimeout(resolve, 1000 * 60 * 7));
 
   console.log('start to stop the client');
   for (const runtime of runtimes) {
     await TwitterClientInterface.stop(runtime);
   }
+
+  await new Promise((resolve) => setTimeout(resolve, 1000 * 60));
 
   return "end";
 }

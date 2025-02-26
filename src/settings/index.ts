@@ -1,10 +1,11 @@
 import { elizaLogger, UUID } from '@elizaos/core';
 import pino from 'pino';
 import { TwitterClientState, TwitterClientStatus } from '../monitor/state';
+import { TwitterConfig } from '../environment';
 
 interface Settings {
   // agentId, twitter username
-  agent: Record<string, string>;
+  agent: Record<string, TwitterConfig>;
   account: Record<
     string,
     {
@@ -26,8 +27,8 @@ export function getCurrentTwitterAccountStatus(username: string): TwitterClientS
 export function getCurrentAgentTwitterAccountStatus(agentId: UUID): TwitterClientStatus {
   if (!SETTINGS.agent[agentId.toString()]) return TwitterClientStatus.STOPPED;
 
-  const username = SETTINGS.agent[agentId.toString()];
-  return getCurrentTwitterAccountStatus(username);
+  const twitterConfig = SETTINGS.agent[agentId.toString()];
+  return getCurrentTwitterAccountStatus(twitterConfig.TWITTER_USERNAME);
 }
 
 export function isAgentTwitterAccountStopped(agentId: UUID): boolean {
