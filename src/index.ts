@@ -62,13 +62,25 @@ class TwitterManager {
   }
 }
 
+function hidePassword(url: string) {
+  if (!url) return url;
+
+  try {
+    const urlParts = new URL(url);
+    urlParts.password = '***';
+    return urlParts.toString();
+  } catch (error) {
+    return url;
+  }
+}
+
 export const TwitterClientInterface: Client = {
   // one loop to start all actions, so that can easy stop the client
   async start(runtime: IAgentRuntime) {
     const twitterConfig: TwitterConfig = await validateTwitterConfig(runtime);
 
     // get proxy from config
-    const proxy = twitterConfig.TWITTER_HTTP_PROXY ?? "";
+    const proxy = hidePassword(twitterConfig.TWITTER_HTTP_PROXY ?? "");
     Logger.debug(`Twitter client started username=${twitterConfig.TWITTER_USERNAME}`);
 
     try {
@@ -127,7 +139,7 @@ async function stop(_runtime: IAgentRuntime) {
   if (getCurrentAgentTwitterAccountStatus(_runtime.agentId) === TwitterClientStatus.RUNNING) {
     const twitterConfig = SETTINGS.agent[_runtime.agentId];
     const username = twitterConfig.TWITTER_USERNAME;
-    const proxy = twitterConfig.TWITTER_HTTP_PROXY ?? "";
+    const proxy = hidePassword(twitterConfig.TWITTER_HTTP_PROXY ?? "");
 
     twitterAccountStatus.labels(username, proxy).set(2);
 
