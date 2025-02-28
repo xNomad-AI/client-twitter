@@ -14,9 +14,11 @@ import express from 'express';
 
 import { TwitterClientInterface } from '../src/index';
 import { wrapperFetchFunction } from '../src/scraper';
-import { register } from '../src/monitor/metrics';
+// import { register } from '../src/monitor/metrics';
 import { exit } from 'process';
+import client from 'prom-client';
 
+const register = client.register;
 type UUID = `${string}-${string}-${string}-${string}-${string}`;
 const baseDir = path.resolve(process.cwd(), 'data');
 const proxyUrl = process.env.TWITTER_HTTP_PROXY;
@@ -86,17 +88,17 @@ async function startServer() {
 
   // Define a route to expose the metrics
   app.get('/metrics', async (req, res) => {
-      try {
-          res.set('Content-Type', register.contentType);
-          res.end(await register.metrics());
-      } catch (err) {
-          res.status(500).end(err);
-      }
+    try {
+      res.set('Content-Type', register.contentType);
+      res.end(await register.metrics());
+    } catch (err) {
+      res.status(500).end(err);
+    }
   });
 
   // Start the Express server
   app.listen(port, () => {
-      console.log(`Server listening on http://localhost:${port}`);
+    console.log(`Server listening on http://localhost:${port}`);
   });
 }
 
@@ -140,10 +142,12 @@ async function start() {
 
   await new Promise((resolve) => setTimeout(resolve, 1000 * 60));
 
-  return "end";
+  return 'end';
 }
 
-start().then( res => {
-  console.log(res);
-  exit(0)
-}).catch(console.error);
+start()
+  .then((res) => {
+    console.log(res);
+    exit(0);
+  })
+  .catch(console.error);

@@ -5,9 +5,16 @@ import { TwitterInteractionClient } from './interactions.ts';
 import { TwitterPostClient } from './post.ts';
 import { TwitterSearchClient } from './search.ts';
 import { TwitterSpaceClient } from './spaces.ts';
-import { getCurrentAgentTwitterAccountStatus, Logger, SETTINGS } from './settings/index.ts';
+import {
+  getCurrentAgentTwitterAccountStatus,
+  Logger,
+  SETTINGS,
+} from './settings/index.ts';
 import { TwitterClientStatus } from './monitor/state.ts';
-import { twitterAccountStatus, twitterPostInterval } from './monitor/metrics.ts';
+import {
+  twitterAccountStatus,
+  twitterPostInterval,
+} from './monitor/metrics.ts';
 
 /**
  * A manager that orchestrates all specialized Twitter logic:
@@ -24,7 +31,10 @@ class TwitterManager {
   interaction: TwitterInteractionClient;
   space?: TwitterSpaceClient;
 
-  constructor(private runtime: IAgentRuntime, twitterConfig: TwitterConfig) {
+  constructor(
+    private runtime: IAgentRuntime,
+    twitterConfig: TwitterConfig,
+  ) {
     // Pass twitterConfig to the base client
     this.client = new ClientBase(runtime, twitterConfig);
 
@@ -80,17 +90,23 @@ export const TwitterClientInterface: Client = {
     const twitterConfig: TwitterConfig = await validateTwitterConfig(runtime);
 
     // get proxy from config
-    const proxy = hidePassword(twitterConfig.TWITTER_HTTP_PROXY ?? "");
-    Logger.debug(`Twitter client started username=${twitterConfig.TWITTER_USERNAME}`);
+    const proxy = hidePassword(twitterConfig.TWITTER_HTTP_PROXY ?? '');
+    Logger.debug(
+      `Twitter client started username=${twitterConfig.TWITTER_USERNAME}`,
+    );
 
     try {
       twitterAccountStatus.labels(twitterConfig.TWITTER_USERNAME, proxy).set(1);
       // if badder then max, there must be some issue
-      twitterPostInterval.labels(twitterConfig.TWITTER_USERNAME).set(twitterConfig.POST_INTERVAL_MAX);
+      twitterPostInterval
+        .labels(twitterConfig.TWITTER_USERNAME)
+        .set(twitterConfig.POST_INTERVAL_MAX);
 
       // only if the status is stopped can start a new client
-      if (SETTINGS.account[twitterConfig.TWITTER_USERNAME] && 
-        SETTINGS.account[twitterConfig.TWITTER_USERNAME].status !== TwitterClientStatus.STOPPED
+      if (
+        SETTINGS.account[twitterConfig.TWITTER_USERNAME] &&
+        SETTINGS.account[twitterConfig.TWITTER_USERNAME].status !==
+          TwitterClientStatus.STOPPED
       ) {
         const msg = `Twitter client ${twitterConfig.TWITTER_USERNAME} is not stopped, cannot start, status=${SETTINGS.account[twitterConfig.TWITTER_USERNAME]?.status}`;
         throw new Error(msg);
@@ -121,7 +137,8 @@ export const TwitterClientInterface: Client = {
         manager.space.startPeriodicSpaceCheck();
       }
 
-      SETTINGS.account[twitterConfig.TWITTER_USERNAME].status = TwitterClientStatus.RUNNING;
+      SETTINGS.account[twitterConfig.TWITTER_USERNAME].status =
+        TwitterClientStatus.RUNNING;
       SETTINGS.account[twitterConfig.TWITTER_USERNAME].manager = manager;
       return manager;
     } catch (error) {
@@ -136,10 +153,13 @@ export const TwitterClientInterface: Client = {
 };
 
 async function stop(_runtime: IAgentRuntime) {
-  if (getCurrentAgentTwitterAccountStatus(_runtime.agentId) === TwitterClientStatus.RUNNING) {
+  if (
+    getCurrentAgentTwitterAccountStatus(_runtime.agentId) ===
+    TwitterClientStatus.RUNNING
+  ) {
     const twitterConfig = SETTINGS.agent[_runtime.agentId];
     const username = twitterConfig.TWITTER_USERNAME;
-    const proxy = hidePassword(twitterConfig.TWITTER_HTTP_PROXY ?? "");
+    const proxy = hidePassword(twitterConfig.TWITTER_HTTP_PROXY ?? '');
 
     twitterAccountStatus.labels(username, proxy).set(2);
 
@@ -155,7 +175,7 @@ async function stop(_runtime: IAgentRuntime) {
       let ok = await manager.post.stop();
       if (!ok) continue;
 
-      ok = await manager.interaction.stop()
+      ok = await manager.interaction.stop();
       if (!ok) continue;
 
       if (manager.space) await manager.space.stopSpace();
@@ -165,7 +185,9 @@ async function stop(_runtime: IAgentRuntime) {
     }
 
     if (maxCheckTimes === 0) {
-      throw new Error(`Twitter client ${username} failed to stop, please try again`);
+      throw new Error(
+        `Twitter client ${username} failed to stop, please try again`,
+      );
     } else {
       // should release the manager from global settings
       SETTINGS.account[username].manager = null;
@@ -177,7 +199,7 @@ async function stop(_runtime: IAgentRuntime) {
     Logger.warn(
       `Twitter client ${_runtime.agentId} is not running, cannot stop`,
     );
-  };
-};
+  }
+}
 
 export default TwitterClientInterface;

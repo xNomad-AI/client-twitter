@@ -109,8 +109,8 @@ export class TwitterInteractionClient {
 
   async start() {
     this.handleTwitterInteractionsInterval = setInterval(async () => {
-      await this.handleTwitterInteractions()
-    }, this.client.twitterConfig.TWITTER_POLL_INTERVAL * 1000)
+      await this.handleTwitterInteractions();
+    }, this.client.twitterConfig.TWITTER_POLL_INTERVAL * 1000);
   }
 
   async stop() {
@@ -118,7 +118,9 @@ export class TwitterInteractionClient {
       clearInterval(this.handleTwitterInteractionsInterval);
       this.handleTwitterInteractionsInterval = null;
       const twitterUsername = this.client.twitterConfig.TWITTER_USERNAME;
-      this.logger.info(`${twitterUsername} task handleTwitterInteractions stopped`);
+      this.logger.info(
+        `${twitterUsername} task handleTwitterInteractions stopped`,
+      );
     }
 
     return true;

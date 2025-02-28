@@ -32,6 +32,7 @@ import type { ActionResponse } from '@elizaos/core';
 import { MediaData } from './types.ts';
 import pino from 'pino';
 import { twitterPostCount } from './monitor/metrics.ts';
+import { Logger } from './settings/index.ts';
 
 const MAX_TIMELINES_TO_FETCH = 15;
 
@@ -111,7 +112,7 @@ export class TwitterPostClient {
     // 0 stopped, 1 running, 2 completed
     generateNewTweet: number;
     processTweetActions: number;
-    runPendingTweetCheck: number
+    runPendingTweetCheck: number;
   } = {
     generateNewTweet: 2,
     processTweetActions: 2,
@@ -433,6 +434,9 @@ export class TwitterPostClient {
       const body = await standardTweetResult.json();
       if (!body?.data?.create_tweet?.tweet_results?.result) {
         this.logger.error('Error sending tweet; Bad response:', body);
+        this.logger.error(
+          `Error sending tweet; contentLen: ${content.length}, content: ${content}`,
+        );
         return;
       }
       return body.data.create_tweet.tweet_results.result;
@@ -485,7 +489,7 @@ export class TwitterPostClient {
         rawTweetContent,
       );
     } catch (error) {
-      this.logger.error('Error sending tweet:', error);
+      this.logger.error('postTweet Error sending tweet:', error);
     }
   }
 
@@ -507,7 +511,45 @@ export class TwitterPostClient {
       );
 
       const topics = this.runtime.character.topics.join(', ');
-      const maxTweetLength = this.client.twitterConfig.MAX_TWEET_LENGTH;
+      // it's better to using 2/3 MAX_LEN to prevent reach the limit
+      const maxTweetLength = Math.floor(
+        (this.client.twitterConfig.MAX_TWEET_LENGTH * 2) / 3,
+      );
+
+      let tokenTweets: {
+        symbol: string;
+        tweetContents: string[];
+      };
+      if (this.runtime.character.topics.includes('crypto currency news')) {
+        const trendingTokens = await getTrendingTokens(
+          this.runtime.getSetting('BIRDEYE_API_KEY'),
+        );
+        for (const item of trendingTokens) {
+          const itemKey = 'token:analysis:' + item.symbol;
+          const postTime: number | undefined =
+            await this.runtime.cacheManager.get(itemKey);
+          if (postTime && Date.now() - postTime < 1000 * 60 * 60 * 12) {
+            continue;
+          }
+          const pumpNewsApikey =
+            this.runtime.getSetting('PUMPNEWS_API_KEY') ||
+            process.env?.PUMPNEWS_API_KEY;
+          const tweets = await fetchPumpNews(pumpNewsApikey, item.address);
+          if (!tweets || tweets.length < 8) {
+            continue;
+          }
+          tokenTweets = {
+            symbol: item.symbol,
+            tweetContents: tweets.map((tweet) => tweet.text),
+          };
+          Logger.log(
+            `Found trending token:, ${item.symbol} with ${tweets.length} tweets`,
+          );
+          await this.runtime.cacheManager.set(itemKey, Date.now());
+          break;
+        }
+      }
+
       const state = await this.runtime.composeState(
         {
           userId: this.runtime.agentId,
@@ -521,6 +563,8 @@ export class TwitterPostClient {
         {
           twitterUserName: this.client.profile.username,
           maxTweetLength,
+          tokenSymbol: tokenTweets?.symbol,
+          tweetContents: tokenTweets?.tweetContents,
         },
       );
 
@@ -624,7 +668,7 @@ export class TwitterPostClient {
           );
         }
       } catch (error) {
-        this.logger.error('Error sending tweet:', error);
+        this.logger.error('generateNewTweet Error sending tweet:', error);
       }
     } catch (error) {
       // console.log(error)
@@ -1191,7 +1235,9 @@ export class TwitterPostClient {
 
     if (this.backendTaskStatus.processTweetActions === 2) {
       this.backendTaskStatus.processTweetActions = 0;
-      this.logger.info(`${this.twitterUsername} task processTweetActions stopped`);
+      this.logger.info(
+        `${this.twitterUsername} task processTweetActions stopped`,
+      );
     } else if (this.backendTaskStatus.processTweetActions === 0) {
       // stopped
     } else {
@@ -1202,7 +1248,9 @@ export class TwitterPostClient {
       clearInterval(this.runPendingTweetCheckInterval);
       this.runPendingTweetCheckInterval = null;
       this.backendTaskStatus.runPendingTweetCheck = 0;
-      this.logger.info(`${this.twitterUsername} task runPendingTweetCheckInterval stopped`);
+      this.logger.info(
+        `${this.twitterUsername} task runPendingTweetCheckInterval stopped`,
+      );
     }
 
     return true;
@@ -1438,5 +1486,64 @@ export class TwitterPostClient {
         }
       }
     }
+  }
+}
+
+interface TokenTweet {
+  id: number;
+  token_address: string;
+  symbol: string;
+  network: string;
+  text: string;
+  favorite_count: number;
+  quote_count: number;
+  reply_count: number;
+  retweet_count: number;
+}
+
+async function getTrendingTokens(birdeypeApiKey: string): Promise<
+  {
+    address: string;
+    symbol: string;
+    name: string;
+  }[]
+> {
+  const url =
+    'https://public-api.birdeye.so/defi/token_trending?sort_by=volume24hUSD&sort_type=desc&offset=0&limit=20';
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'X-API-KEY': birdeypeApiKey,
+        accept: 'application/json',
+        'x-chain': 'solana',
+      },
+    });
+    const result = await response.json();
+    return result?.data.tokens;
+  } catch (error) {
+    Logger.error(`Error fetching trending tokens:, error`);
+    return null;
+  }
+}
+
+async function fetchPumpNews(
+  apikey: string,
+  token: string,
+): Promise<TokenTweet[]> {
+  const url = `https://api.pump.news/tweets/list?tokenAddress=${token}&pageSize=20`;
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        accept: '*/*',
+        apikey: apikey,
+      },
+    });
+    const result = await response.json();
+    return result?.data.tweets;
+  } catch (e) {
+    Logger.error(`Error fetching pump news: ${e}`);
+    return null;
   }
 }

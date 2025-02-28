@@ -354,7 +354,10 @@ export class ClientBase extends EventEmitter {
 
     if (this.profile) {
       this.logger.debug('Twitter user ID:', this.profile.id);
-      this.logger.debug('Twitter loaded:', JSON.stringify(this.profile, null, 10));
+      this.logger.debug(
+        'Twitter loaded:',
+        JSON.stringify(this.profile, null, 10),
+      );
       // Store profile info for use in responses
       this.runtimeHelper.setTwitterProfile(this.profile);
     } else {
@@ -500,7 +503,6 @@ export class ClientBase extends EventEmitter {
         !existingMemoryIds.has(this.runtimeHelper.getTweetMemoryId(tweet.id)),
     );
 
-    
     this.logger.debug({
       processingTweets: tweetsToSave.map((tweet) => tweet.id).join(','),
     });
@@ -589,7 +591,10 @@ export class ClientBase extends EventEmitter {
 
 class RuntimeHelper {
   // TODO add runtime helper to base class
-  constructor(private runtime: IAgentRuntime, private logger: pino.Logger<string, boolean>) {}
+  constructor(
+    private runtime: IAgentRuntime,
+    private logger: pino.Logger<string, boolean>,
+  ) {}
 
   async saveRequestMessage(
     message: Memory,
@@ -773,7 +778,9 @@ class RuntimeHelper {
         );
 
         if (memory) {
-          this.logger.info('Memory already exists, skipping timeline population');
+          this.logger.info(
+            'Memory already exists, skipping timeline population',
+          );
           break;
         }
       }
