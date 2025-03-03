@@ -95,6 +95,142 @@ interface PendingTweet {
 
 type PendingTweetApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
+class RuntimeTwitterPostHelper {
+  constructor(private runtime: IAgentRuntime, private logger: pino.Logger<string, boolean>) {}
+
+  /**
+ * Generates and posts a new tweet. If isDryRun is true, only logs what would have been posted.
+ */
+  async generatePostTweet(username: string, max_tweet_length: number) {
+    const roomId = stringToUuid('twitter_generate_room-' + username,);
+    const topics = this.runtime.character.topics.join(', ');
+    // it's better to using 4/5 MAX_LEN to prevent reach the limit
+    const maxTweetLength = Math.floor((max_tweet_length * 4) / 5);
+
+    let tokenTweets: {
+      symbol: string;
+      tweetContents: string[];
+    };
+    if (this.runtime.character.topics.includes('crypto currency news')) {
+      const trendingTokens = await getTrendingTokens(
+        this.runtime.getSetting('BIRDEYE_API_KEY'),
+      );
+      for (const item of trendingTokens) {
+        const itemKey = 'token:analysis:' + item.symbol;
+        const postTime: number | undefined =
+          await this.runtime.cacheManager.get(itemKey);
+        if (postTime && Date.now() - postTime < 1000 * 60 * 60 * 12) {
+          continue;
+        }
+        const pumpNewsApikey =
+          this.runtime.getSetting('PUMPNEWS_API_KEY') ||
+          process.env?.PUMPNEWS_API_KEY;
+        const tweets = await fetchPumpNews(pumpNewsApikey, item.address);
+        if (!tweets || tweets.length < 8) {
+          continue;
+        }
+        tokenTweets = {
+          symbol: item.symbol,
+          tweetContents: tweets.map((tweet) => tweet.text),
+        };
+        Logger.log(
+          `Found trending token:, ${item.symbol} with ${tweets.length} tweets`,
+        );
+        await this.runtime.cacheManager.set(itemKey, Date.now());
+        break;
+      }
+    }
+
+    const state = await this.runtime.composeState(
+      {
+        userId: this.runtime.agentId,
+        roomId: roomId,
+        agentId: this.runtime.agentId,
+        content: {
+          text: topics || '',
+          action: 'TWEET',
+        },
+      },
+      {
+        twitterUserName: username,
+        maxTweetLength,
+        tokenSymbol: tokenTweets?.symbol,
+        tweetContents: tokenTweets?.tweetContents,
+      },
+    );
+
+    const context = composeContext({
+      state,
+      template:
+        this.runtime.character.templates?.twitterPostTemplate ||
+        twitterPostTemplate,
+    });
+
+    this.logger.debug('generate post prompt:\n' + context);
+
+    const response = await generateText({
+      runtime: this.runtime,
+      context,
+      modelClass: ModelClass.SMALL,
+    });
+
+    const rawTweetContent = cleanJsonResponse(response);
+
+    // First attempt to clean content
+    let tweetTextForPosting = null;
+    let mediaData = null;
+
+    // Try parsing as JSON first
+    const parsedResponse = parseJSONObjectFromText(rawTweetContent);
+    if (parsedResponse?.text) {
+      tweetTextForPosting = parsedResponse.text;
+    } else {
+      // If not JSON, use the raw text directly
+      tweetTextForPosting = rawTweetContent.trim();
+    }
+
+    if (
+      parsedResponse?.attachments &&
+      parsedResponse?.attachments.length > 0
+    ) {
+      mediaData = await fetchMediaData(parsedResponse.attachments);
+    }
+
+    // Try extracting text attribute
+    if (!tweetTextForPosting) {
+      const parsingText = extractAttributes(rawTweetContent, ['text']).text;
+      if (parsingText) {
+        tweetTextForPosting = truncateToCompleteSentence(
+          extractAttributes(rawTweetContent, ['text']).text,
+          max_tweet_length,
+        );
+      }
+    }
+
+    // Use the raw text
+    if (!tweetTextForPosting) {
+      tweetTextForPosting = rawTweetContent;
+    }
+
+    // Truncate the content to the maximum tweet length specified in the environment settings, ensuring the truncation respects sentence boundaries.
+    if (maxTweetLength) {
+      tweetTextForPosting = truncateToCompleteSentence(
+        tweetTextForPosting,
+        maxTweetLength,
+      );
+    }
+
+    const removeQuotes = (str: string) => str.replace(/^['"](.*)['"]$/, '$1');
+
+    const fixNewLines = (str: string) => str.replaceAll(/\\n/g, '\n\n'); //ensures double spaces
+
+    // Final cleaning
+    tweetTextForPosting = removeQuotes(fixNewLines(tweetTextForPosting));
+
+    return { tweetTextForPosting, rawTweetContent, mediaData, roomId };
+  }
+}
+
 export class TwitterPostClient {
   client: ClientBase;
   runtime: IAgentRuntime;
@@ -107,6 +243,7 @@ export class TwitterPostClient {
   private discordApprovalChannelId: string;
   private approvalCheckInterval: number;
   private runPendingTweetCheckInterval: NodeJS.Timeout;
+  private runtimeTwitterPostHelper: RuntimeTwitterPostHelper;
 
   private backendTaskStatus: {
     // 0 stopped, 1 running, 2 completed
@@ -127,6 +264,7 @@ export class TwitterPostClient {
     this.logger = client.logger;
     this.twitterUsername = this.client.twitterConfig.TWITTER_USERNAME;
     this.isDryRun = this.client.twitterConfig.TWITTER_DRY_RUN;
+    this.runtimeTwitterPostHelper = new RuntimeTwitterPostHelper(this.runtime, this.logger);
 
     // Log configuration on initialization
     // this.logger.log('Twitter Client Configuration:');
@@ -249,7 +387,8 @@ export class TwitterPostClient {
 
       const lastPost = await this.runtime.cacheManager.get<{
         timestamp: number;
-      }>('twitter/' + this.twitterUsername + '/lastPost');
+        id?: string;
+      }>(`twitter/${this.client.profile.username}/lastPost`);
 
       const lastPostTimestamp = lastPost?.timestamp ?? 0;
       const minMinutes = this.client.twitterConfig.POST_INTERVAL_MIN;
@@ -431,12 +570,53 @@ export class TwitterPostClient {
         async () =>
           await client.twitterClient.sendTweet(content, tweetId, mediaData),
       );
+      /**
+       * const body = {
+          errors: [
+            {
+              "message": "Authorization: Status is a duplicate. (187)",
+              "locations": [
+                {
+                  "line": 18,
+                  "column": 3
+                }
+              ],
+              "path": [
+                "create_tweet"
+              ],
+              "extensions": {
+                "name": "AuthorizationError",
+                "source": "Client",
+                "code": 187,
+                "kind": "Permissions",
+                "tracing": {
+                  "trace_id": "xx"
+                }
+              },
+              "code": 187,
+              "kind": "Permissions",
+              "name": "AuthorizationError",
+              "source": "Client",
+              "tracing": {
+                "trace_id": "xx"
+              }
+            }
+          ],
+          data: {}
+        }
+       */
       const body = await standardTweetResult.json();
       if (!body?.data?.create_tweet?.tweet_results?.result) {
-        this.logger.error('Error sending tweet; Bad response:', body);
-        this.logger.error(
-          `Error sending tweet; contentLen: ${content.length}, content: ${content}`,
-        );
+        const errorCode = body?.errors?.[0]?.code;
+        if (errorCode === 187) {
+          this.logger.warn(`Authorization: Status is a duplicate. (187), content: ${content}`)
+        } else {
+          this.logger.error('Error sending tweet; Bad response:', body);
+          // TODO fix 'Authorization: Status is a duplicate. (187)'
+          this.logger.error(
+            `Error sending tweet; contentLen: ${content.length}, content: ${content}`,
+          );
+        }
         return;
       }
       return body.data.create_tweet.tweet_results.result;
@@ -477,6 +657,11 @@ export class TwitterPostClient {
         );
       }
 
+      if (result === undefined) {
+        this.logger.error('Error sending tweet; result is undefined');
+        return;
+      }
+
       twitterPostCount.labels(twitterUsername).inc();
 
       const tweet = this.createTweetObject(result, client, twitterUsername);
@@ -497,182 +682,66 @@ export class TwitterPostClient {
    * Generates and posts a new tweet. If isDryRun is true, only logs what would have been posted.
    */
   async generateNewTweet() {
-    this.logger.log('Generating new tweet');
-
     try {
-      const roomId = stringToUuid(
-        'twitter_generate_room-' + this.client.profile.username,
-      );
-      await this.runtime.ensureUserExists(
-        this.runtime.agentId,
-        this.client.profile.username,
-        this.runtime.character.name,
-        'twitter',
-      );
+      this.logger.log('generatePostTweet start');
+      let postTweet = await this.runtimeTwitterPostHelper.generatePostTweet(this.client.profile.username, this.client.twitterConfig.MAX_TWEET_LENGTH);
+      this.logger.log('generatePostTweet end');
 
-      const topics = this.runtime.character.topics.join(', ');
-      // it's better to using 2/3 MAX_LEN to prevent reach the limit
-      const maxTweetLength = Math.floor(
-        (this.client.twitterConfig.MAX_TWEET_LENGTH * 2) / 3,
-      );
-
-      let tokenTweets: {
-        symbol: string;
-        tweetContents: string[];
-      };
-      if (this.runtime.character.topics.includes('crypto currency news')) {
-        const trendingTokens = await getTrendingTokens(
-          this.runtime.getSetting('BIRDEYE_API_KEY'),
+      // check if the tweet content is duplicate
+      // fix 'Authorization: Status is a duplicate. (187)'
+      const lastPost = await this.runtime.cacheManager.get<{
+        timestamp: number;
+        id?: string;
+      }>(`twitter/${this.client.profile.username}/lastPost`);
+      if (lastPost && lastPost.id) {
+        const lastPostContent = await this.runtime.messageManager.getMemoryById(
+          stringToUuid(lastPost.id + '-' + this.runtime.agentId),
         );
-        for (const item of trendingTokens) {
-          const itemKey = 'token:analysis:' + item.symbol;
-          const postTime: number | undefined =
-            await this.runtime.cacheManager.get(itemKey);
-          if (postTime && Date.now() - postTime < 1000 * 60 * 60 * 12) {
-            continue;
-          }
-          const pumpNewsApikey =
-            this.runtime.getSetting('PUMPNEWS_API_KEY') ||
-            process.env?.PUMPNEWS_API_KEY;
-          const tweets = await fetchPumpNews(pumpNewsApikey, item.address);
-          if (!tweets || tweets.length < 8) {
-            continue;
-          }
-          tokenTweets = {
-            symbol: item.symbol,
-            tweetContents: tweets.map((tweet) => tweet.text),
-          };
-          Logger.log(
-            `Found trending token:, ${item.symbol} with ${tweets.length} tweets`,
+        if (lastPostContent?.content.text === postTweet.tweetTextForPosting) {
+          this.logger.warn(
+            `The tweet content is the same as the last post, skipping: ${postTweet.tweetTextForPosting}`,
           );
-          await this.runtime.cacheManager.set(itemKey, Date.now());
-          break;
+          // retry once
+          postTweet = await this.runtimeTwitterPostHelper.generatePostTweet(this.client.profile.username, this.client.twitterConfig.MAX_TWEET_LENGTH);
         }
       }
-
-      const state = await this.runtime.composeState(
-        {
-          userId: this.runtime.agentId,
-          roomId: roomId,
-          agentId: this.runtime.agentId,
-          content: {
-            text: topics || '',
-            action: 'TWEET',
-          },
-        },
-        {
-          twitterUserName: this.client.profile.username,
-          maxTweetLength,
-          tokenSymbol: tokenTweets?.symbol,
-          tweetContents: tokenTweets?.tweetContents,
-        },
-      );
-
-      const context = composeContext({
-        state,
-        template:
-          this.runtime.character.templates?.twitterPostTemplate ||
-          twitterPostTemplate,
-      });
-
-      this.logger.debug('generate post prompt:\n' + context);
-
-      const response = await generateText({
-        runtime: this.runtime,
-        context,
-        modelClass: ModelClass.SMALL,
-      });
-
-      const rawTweetContent = cleanJsonResponse(response);
-
-      // First attempt to clean content
-      let tweetTextForPosting = null;
-      let mediaData = null;
-
-      // Try parsing as JSON first
-      const parsedResponse = parseJSONObjectFromText(rawTweetContent);
-      if (parsedResponse?.text) {
-        tweetTextForPosting = parsedResponse.text;
-      } else {
-        // If not JSON, use the raw text directly
-        tweetTextForPosting = rawTweetContent.trim();
-      }
-
-      if (
-        parsedResponse?.attachments &&
-        parsedResponse?.attachments.length > 0
-      ) {
-        mediaData = await fetchMediaData(parsedResponse.attachments);
-      }
-
-      // Try extracting text attribute
-      if (!tweetTextForPosting) {
-        const parsingText = extractAttributes(rawTweetContent, ['text']).text;
-        if (parsingText) {
-          tweetTextForPosting = truncateToCompleteSentence(
-            extractAttributes(rawTweetContent, ['text']).text,
-            this.client.twitterConfig.MAX_TWEET_LENGTH,
-          );
-        }
-      }
-
-      // Use the raw text
-      if (!tweetTextForPosting) {
-        tweetTextForPosting = rawTweetContent;
-      }
-
-      // Truncate the content to the maximum tweet length specified in the environment settings, ensuring the truncation respects sentence boundaries.
-      if (maxTweetLength) {
-        tweetTextForPosting = truncateToCompleteSentence(
-          tweetTextForPosting,
-          maxTweetLength,
-        );
-      }
-
-      const removeQuotes = (str: string) => str.replace(/^['"](.*)['"]$/, '$1');
-
-      const fixNewLines = (str: string) => str.replaceAll(/\\n/g, '\n\n'); //ensures double spaces
-
-      // Final cleaning
-      tweetTextForPosting = removeQuotes(fixNewLines(tweetTextForPosting));
 
       if (this.isDryRun) {
         this.logger.info(
-          `Dry run: would have posted tweet: ${tweetTextForPosting}`,
+          `Dry run: would have posted tweet: ${postTweet.tweetTextForPosting}`,
         );
         return;
       }
 
-      try {
-        if (this.approvalRequired) {
-          // Send for approval instead of posting directly
-          this.logger.log(
-            `Sending Tweet For Approval:\n ${tweetTextForPosting}`,
-          );
-          await this.sendForApproval(
-            tweetTextForPosting,
-            roomId,
-            rawTweetContent,
-          );
-          this.logger.log('Tweet sent for approval');
-        } else {
-          this.logger.log(`Posting new tweet:\n ${tweetTextForPosting}`);
-          this.postTweet(
-            this.runtime,
-            this.client,
-            tweetTextForPosting,
-            roomId,
-            rawTweetContent,
-            this.twitterUsername,
-            mediaData,
-          );
-        }
-      } catch (error) {
-        this.logger.error('generateNewTweet Error sending tweet:', error);
+      this.logger.log('postTweet start');
+      if (this.approvalRequired) {
+        // Send for approval instead of posting directly
+        this.logger.log(
+          `Sending Tweet For Approval:\n ${postTweet.tweetTextForPosting}`,
+        );
+        await this.sendForApproval(
+          postTweet.tweetTextForPosting,
+          postTweet.roomId,
+          postTweet.rawTweetContent,
+        );
+        this.logger.log('Tweet sent for approval');
+      } else {
+        this.logger.log(`Posting new tweet:\n ${postTweet.tweetTextForPosting}`);
+        this.postTweet(
+          this.runtime,
+          this.client,
+          postTweet.tweetTextForPosting,
+          postTweet.roomId,
+          postTweet.rawTweetContent,
+          this.twitterUsername,
+          postTweet.mediaData,
+        ).catch((error) => {
+          this.logger.error('Error posting tweet:', error);
+        });
       }
+      this.logger.log('postTweet end');
     } catch (error) {
-      // console.log(error)
-      this.logger.error('Error generating new tweet:', error);
+      this.logger.error('Error generateNewTweet:', error);
     }
   }
 

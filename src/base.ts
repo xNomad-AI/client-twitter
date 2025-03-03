@@ -228,8 +228,10 @@ export class ClientBase extends EventEmitter {
     super();
     this.runtime = runtime;
     this.twitterConfig = twitterConfig;
+    // TODO fix when twitter username changed
     this.logger = Logger.child({
       twitterName: this.twitterConfig.TWITTER_USERNAME,
+      name: this.twitterConfig.TWITTER_USERNAME,
     });
     this.runtimeHelper = new RuntimeHelper(runtime, this.logger);
     const username = twitterConfig.TWITTER_USERNAME;
