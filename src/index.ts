@@ -13,6 +13,7 @@ import {
 import { TwitterClientStatus } from './monitor/state.ts';
 import {
   twitterAccountStatus,
+  twitterPostCount,
   twitterPostInterval,
 } from './monitor/metrics.ts';
 
@@ -97,6 +98,8 @@ export const TwitterClientInterface: Client = {
 
     try {
       twitterAccountStatus.labels(twitterConfig.TWITTER_USERNAME, proxy).set(1);
+      // init the post count
+      twitterPostCount.labels(twitterConfig.TWITTER_USERNAME).inc(0);
       // if badder then max, there must be some issue
       twitterPostInterval
         .labels(twitterConfig.TWITTER_USERNAME)
