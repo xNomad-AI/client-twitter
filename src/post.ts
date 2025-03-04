@@ -397,13 +397,18 @@ export class TwitterPostClient {
         Math.floor(Math.random() * (maxMinutes - minMinutes + 1)) + minMinutes;
       const delay = randomMinutes * 60 * 1000;
 
-      if (Date.now() > lastPostTimestamp + delay) {
-        await this.generateNewTweet();
+      while (Date.now() <= lastPostTimestamp + delay) {
+        // 1 minute
+        await new Promise((resolve) => setTimeout(resolve, 60 * 1000));
       }
 
+      await this.generateNewTweet();
       this.backendTaskStatus.generateNewTweet = 2;
+      
       setTimeout(() => {
-        generateNewTweetLoop(); // Set up next iteration
+        generateNewTweetLoop().catch( err => {
+          this.logger.error('Error in generateNewTweetLoop:', err);
+        }); // Set up next iteration
       }, delay);
 
       this.logger.info(`Next tweet scheduled in ${randomMinutes} minutes`);
