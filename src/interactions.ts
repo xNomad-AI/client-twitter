@@ -294,7 +294,8 @@ export class TwitterInteractionClient {
 
       this.logger.log('Finished checking Twitter interactions');
     } catch (error) {
-      this.logger.error('Error handling Twitter interactions:', error);
+      this.logger.error(error);
+      this.logger.error(`Error handling Twitter interactions: ${error}`);
     }
   }
 
