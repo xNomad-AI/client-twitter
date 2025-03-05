@@ -356,10 +356,7 @@ export class ClientBase extends EventEmitter {
 
     if (this.profile) {
       this.logger.debug('Twitter user ID:', this.profile.id);
-      this.logger.debug(
-        'Twitter loaded:',
-        JSON.stringify(this.profile, null, 10),
-      );
+      this.logger.debug('Twitter loaded:', JSON.stringify(this.profile));
       // Store profile info for use in responses
       this.runtimeHelper.setTwitterProfile(this.profile);
     } else {
@@ -505,9 +502,9 @@ export class ClientBase extends EventEmitter {
         !existingMemoryIds.has(this.runtimeHelper.getTweetMemoryId(tweet.id)),
     );
 
-    this.logger.debug({
+    this.logger.debug('processingTweets: ', JSON.stringify({
       processingTweets: tweetsToSave.map((tweet) => tweet.id).join(','),
-    });
+    }));
 
     await this.runtimeHelper.ensureUserExists(username);
     // Save the new tweets as memories
