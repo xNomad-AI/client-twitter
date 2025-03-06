@@ -145,7 +145,7 @@ export const TwitterClientInterface: Client = {
       SETTINGS.account[twitterConfig.TWITTER_USERNAME].manager = manager;
       return manager;
     } catch (error) {
-      twitterAccountStatus.labels(twitterConfig.TWITTER_USERNAME).set(0);
+      twitterAccountStatus.labels(twitterConfig.TWITTER_USERNAME, proxy).set(0);
       throw error;
     }
   },
