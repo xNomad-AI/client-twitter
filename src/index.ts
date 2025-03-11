@@ -97,7 +97,7 @@ export const TwitterClientInterface: Client = {
     );
 
     try {
-      twitterAccountStatus.labels(twitterConfig.TWITTER_USERNAME, proxy).set(1);
+      twitterAccountStatus.labels(twitterConfig.TWITTER_USERNAME, proxy, runtime.agentId).set(1);
       // init the post count
       twitterPostCount.labels(twitterConfig.TWITTER_USERNAME).inc(0);
       // if badder then max, there must be some issue
@@ -145,7 +145,7 @@ export const TwitterClientInterface: Client = {
       SETTINGS.account[twitterConfig.TWITTER_USERNAME].manager = manager;
       return manager;
     } catch (error) {
-      twitterAccountStatus.labels(twitterConfig.TWITTER_USERNAME, proxy).set(0);
+      twitterAccountStatus.labels(twitterConfig.TWITTER_USERNAME, proxy, runtime.agentId).set(0);
       throw error;
     }
   },
@@ -164,7 +164,7 @@ async function stop(_runtime: IAgentRuntime) {
     const username = twitterConfig.TWITTER_USERNAME;
     const proxy = hidePassword(twitterConfig.TWITTER_HTTP_PROXY ?? '');
 
-    twitterAccountStatus.labels(username, proxy).set(2);
+    twitterAccountStatus.labels(username, proxy, _runtime.agentId).set(2);
 
     SETTINGS.account[username].status = TwitterClientStatus.STOPPING;
     const manager: TwitterManager | null = SETTINGS.account[username].manager;
@@ -195,7 +195,7 @@ async function stop(_runtime: IAgentRuntime) {
       // should release the manager from global settings
       SETTINGS.account[username].manager = null;
       SETTINGS.account[username].status = TwitterClientStatus.STOPPED;
-      twitterAccountStatus.labels(username, proxy).set(0);
+      twitterAccountStatus.labels(username, proxy, _runtime.agentId).set(0);
       Logger.info(`Twitter client ${_runtime.agentId} stopped`);
     }
   } else {

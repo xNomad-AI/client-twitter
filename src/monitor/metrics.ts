@@ -14,7 +14,7 @@ export const twitterAccountStatus = new client.Gauge({
   name: `${prefix}twitter_account_status`,
   help: 'twitter account running status, 0 stopped, 1 running, 2 stopping',
   // registers: [register],
-  labelNames: ['twitterName', 'ip'],
+  labelNames: ['twitterName', 'twitterHttpProxy', 'agentId'],
 });
 
 // using the post interval and post count to check if there has any missing post
