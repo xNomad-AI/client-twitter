@@ -472,8 +472,6 @@ export class TwitterPostClient {
           Math.floor(Math.random() * (maxMinutes - minMinutes + 1)) + minMinutes;
         const delay = randomMinutes * 60 * 1000;
 
-        this.logger.info("Next tweet scheduled at " + new Date(lastPostTimestamp + delay).toISOString());
-
         // check posted or not
         const maxCheckCount = 4;
         let count = 0;
@@ -487,6 +485,7 @@ export class TwitterPostClient {
           await this.generateNewTweet();
         }
 
+        this.logger.info("Next tweet scheduled at " + new Date(lastPostTimestamp + delay).toISOString());
         lastDelay = delay;
         return delay;
       },
@@ -1425,6 +1424,8 @@ export class TwitterPostClient {
     ].every(status => status === 4)) {
       return true;
     }
+
+    this.logger.info(`Stopping Twitter post loops... ${JSON.stringify(this.backendTaskStatus)}`);
 
     // the loop is running, so set stats to 0 wait the loop stop
     this.backendTaskStatus.generateNewTweet = 0;
