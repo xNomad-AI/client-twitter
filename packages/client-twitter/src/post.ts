@@ -1416,21 +1416,12 @@ export class TwitterPostClient {
 
   // if false, should stop again
   async stop(): Promise<boolean> {
-    // the loop is not running
-    if ([
-      this.backendTaskStatus.generateNewTweet,
-      this.backendTaskStatus.processTweetActions,
-      this.backendTaskStatus.runPendingTweetCheck
-    ].every(status => status === 4)) {
-      return true;
-    }
-
     this.logger.info(`Stopping Twitter post loops... ${JSON.stringify(this.backendTaskStatus)}`);
 
     // the loop is running, so set stats to 0 wait the loop stop
-    this.backendTaskStatus.generateNewTweet = 0;
-    this.backendTaskStatus.processTweetActions = 0;
-    this.backendTaskStatus.runPendingTweetCheck = 0;
+    if(this.backendTaskStatus.generateNewTweet !== 4) this.backendTaskStatus.generateNewTweet = 0;
+    if(this.backendTaskStatus.processTweetActions !== 4) this.backendTaskStatus.processTweetActions = 0;
+    if(this.backendTaskStatus.runPendingTweetCheck !== 4) this.backendTaskStatus.runPendingTweetCheck = 0;
 
     // check if all loop exit
     return [
