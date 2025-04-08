@@ -23,8 +23,8 @@ async function randomDelay() {
 }
 
 // const CheckLocalTasksStatusCronTime = CronExpression.EVERY_10_SECONDS;
-const CheckLocalTasksStatusCronTime = CronExpression.EVERY_30_SECONDS;
-const CheckLocalTasksStatusTimesOneDay = 60 * 60 * 24 / 30;
+const CheckLocalTasksStatusCronTime = CronExpression.EVERY_MINUTE;
+const CheckLocalTasksStatusTimesOneDay = 60 * 24;
 const EVERY_2_MINUTE = "*/2 * * * *";
 
 export function CatchCronError(cronTime: string) {
