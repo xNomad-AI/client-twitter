@@ -280,7 +280,9 @@ export class TasksController {
       throw new BadRequestException(`task ${updatedTask.title} runtime not found`);
     }
 
-    this.watcherService.updateTask(updatedTask);
+    if (updatedTask.createdBy === workerUuid) {
+      this.watcherService.updateTask(updatedTask);
+    }
     return updatedTask;
   }
 
