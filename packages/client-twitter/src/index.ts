@@ -110,10 +110,20 @@ export class TwitterManager {
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
       let ok = await this.post.stop();
-      if (!ok) continue;
+      if (!ok) {
+        this.client.logger.info(
+          `Twitter client ${this.client.twitterConfig.TWITTER_USERNAME} failed to stop posting, retrying...`
+        );
+        continue;
+      }
 
       ok = await this.interaction.stop();
-      if (!ok) continue;
+      if (!ok) {
+        this.client.logger.info(
+          `Twitter client ${this.client.twitterConfig.TWITTER_USERNAME} failed to stop interaction, retrying...`
+        );
+        continue;
+      }
 
       if (this.space) await this.space.stopSpace();
       if (this.search) await this.search.stop();

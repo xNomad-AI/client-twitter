@@ -473,12 +473,20 @@ export class TwitterPostClient {
         const delay = randomMinutes * 60 * 1000;
 
         this.logger.info("Next tweet scheduled at " + new Date(lastPostTimestamp + delay).toISOString());
-        while (Date.now() <= lastPostTimestamp + (lastDelay ?? delay)) {
-          // 1 minute
-          await new Promise((resolve) => setTimeout(resolve, 60 * 1000));
+
+        // check posted or not
+        const maxCheckCount = 4;
+        let count = 0;
+        while ((Date.now() <= lastPostTimestamp + (lastDelay ?? delay)) && count < maxCheckCount) {
+          // 10 seconds
+          await new Promise((resolve) => setTimeout(resolve, 10 * 1000));
+          count++;
         }
 
-        await this.generateNewTweet();
+        if (count < maxCheckCount) {
+          await this.generateNewTweet();
+        }
+
         lastDelay = delay;
         return delay;
       },
