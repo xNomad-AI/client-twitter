@@ -3,6 +3,7 @@ import { UUID, type IAgentRuntime } from '@elizaos/core';
 import { TwitterClientState, TwitterClientStatus } from '../monitor/state';
 import { TwitterConfig } from '../environment';
 import { type TwitterManager } from '..';
+import { Logger } from './external.js';
 
 class ClientTwitterStatement {
   // stop or start or other
@@ -36,7 +37,7 @@ export class GlobalSettings {
   // agentId -> twitter config
   private agent: Record<UUID, ClientTwitterStatement> = {};
   // twitter username -> twitter config
-  private username: Record<string, UUID> = {};
+  // private username: Record<string, UUID> = {};
 
   constructor() { }
 
@@ -54,8 +55,9 @@ export class GlobalSettings {
     );
 
     this.agent[runtime.agentId] = statement;
-    this.username[config.TWITTER_USERNAME!] = runtime.agentId;
-    console.log(`addClientTwitterStatement ${config.TWITTER_USERNAME!} ${runtime.agentId}`);
+    // this.username[config.TWITTER_USERNAME!] = runtime.agentId;
+    Logger.info(`addClientTwitterStatement ${config.TWITTER_USERNAME!} ${runtime.agentId}`);
+    // console.log(`addClientTwitterStatement ${config.TWITTER_USERNAME!} ${runtime.agentId}`);
 
     return statement;
   }
@@ -95,12 +97,12 @@ export class GlobalSettings {
     return this.agent[agentId].manager;
   }
 
-  getCurrentTwitterAccountStatus(username: string): TwitterClientStatus {
-    if (username in this.username) {
-      return this.getCurrentAgentTwitterAccountStatus(this.username[username]);
-    }
-    return TwitterClientStatus.STOPPED;
-  }
+  // getCurrentTwitterAccountStatus(username: string): TwitterClientStatus {
+  //   if (username in this.username) {
+  //     return this.getCurrentAgentTwitterAccountStatus(this.username[username]);
+  //   }
+  //   return TwitterClientStatus.STOPPED;
+  // }
 
   getCurrentAgentTwitterAccountStatus(agentId: UUID): TwitterClientStatus {
     if (this.agent[agentId]) {
