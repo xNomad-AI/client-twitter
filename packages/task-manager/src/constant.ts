@@ -14,7 +14,7 @@ export const leaseTime = 1000 * 60 * 8;
 export const TASK_MANAGER_ADMIN_API_KEY = process.env.TASK_MANAGER_ADMIN_API_KEY;
 
 // mongodb settings start--------------------------------
-export const mongodbUri = process.env.TASK_MONGODB_URI;
+export const mongodbUri = process.env.TASK_MONGODB_URI || process.env.MONGODB_URL;
 assert(mongodbUri, 'TASK_MONGODB_URI is required');
 //  || `${process.cwd()}/secrets/ca.crt`
 export const mongodbCaFile = process.env.TASK_MONGODB_CA_FILE;
@@ -24,8 +24,8 @@ export const TASK_MONGODB_SETTINGS_COLLECTION_NAME = process.env.TASK_MONGODB_SE
 export const lockMongodbCollectionName = process.env.LOCK_MONGODB_COLLECTION_NAME || 'ClientTwitterTaskLock';
 // mongodb settings end--------------------------------
 
-export const taskManagerHttpServicePort = process.env.TASK_MANAGER_HTTP_SERVICE_PORT || 3000;
-export const taskManagerBaseEndpoint = process.env.TASK_MANAGER_BASE_ENDPOINT;
+export const taskManagerHttpServicePort = process.env.TASK_MANAGER_HTTP_SERVICE_PORT || process.env.CORE_SERVER_PORT || 3000;
+export const taskManagerBaseEndpoint = process.env.TASK_MANAGER_BASE_ENDPOINT || `http://localhost:${taskManagerHttpServicePort}`;
 assert(taskManagerBaseEndpoint, 'TASK_MANAGER_BASE_ENDPOINT is required');
 
 // used for local running
