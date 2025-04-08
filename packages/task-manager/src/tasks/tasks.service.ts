@@ -17,7 +17,12 @@ export class TasksService {
   }
 
   async update(id: string, updateTask: Partial<Task>): Promise<Task | null> {
-    updateTask.updatedAt = new Date();
+    const task = await this.getTask(id);
+    // only same user can auto add update time
+    if (task && task.createdBy === updateTask.createdBy) {
+      updateTask.updatedAt = new Date();
+    }
+
     return this.taskModel.findByIdAndUpdate(id, updateTask, { new: true });
   }
 
