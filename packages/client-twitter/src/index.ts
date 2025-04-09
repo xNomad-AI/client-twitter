@@ -241,10 +241,10 @@ export class TwitterClientClass implements Client {
 }
 
 /**
-
+ * @param {string} twitterUsername
+ * @param {number} maxTweetLength
+ * @param {string} twitterPostTemplate
  * @param {IAgentRuntime} runtime
-  * @param {string} twitterUsername
-  * @param {number} maxTweetLength
  * @returns
  * - rawTweet: tweet before reduce the length
  * - tweet: tweet after reduce the length
@@ -252,19 +252,24 @@ export class TwitterClientClass implements Client {
  * @throws {Error} If TWITTER_USERNAME or MAX_TWEET_LENGTH is not found in runtime.
  * @throws {Error} If MAX_TWEET_LENGTH is not a number.
  */
-async function generatePostTweet(twitterUsername: string, maxTweetLength: number, runtime: IAgentRuntime): Promise<{
+async function generatePostTweet(
+  twitterUsername: string,
+  maxTweetLength: number,
+  twitterPostTemplate: string,
+  runtime: IAgentRuntime
+): Promise<{
   rawTweet: string;
   tweet: string;
 }> {
   const helper = new RuntimeTwitterPostHelper(runtime, Logger);
-  if (!twitterUsername) {
-    throw new Error('TWITTER_USERNAME not found in runtime');
+  if (!twitterUsername || !twitterPostTemplate) {
+    throw new Error('twitterUsername or twitterPostTemplate is undefined');
   }
   if (!maxTweetLength || isNaN(Number(maxTweetLength))) {
-    throw new Error('MAX_TWEET_LENGTH not found in runtime or is not a number');
+    throw new Error('maxTweetLength is not a number');
   }
 
-  const resp = await helper.generatePostTweet(twitterUsername, Number(maxTweetLength));
+  const resp = await helper.generatePostTweet(twitterUsername, Number(maxTweetLength), twitterPostTemplate);
   return {
     rawTweet: resp.rawTweetContent,
     tweet: resp.tweetTextForPosting

@@ -31,12 +31,12 @@ async function start() {
   );
 
   for (const runtime of runtimes) {
-    const res = await generatePostTweet(runtime);
+    const res = await generatePostTweet("debug", 100, "hello", runtime);
     console.log('--------------generatePostTweet--------------');
     console.log(res);
   }
 
-  await new Promise((resolve) => setTimeout(resolve, 1000 * 5));
+  await new Promise((resolve) => setTimeout(resolve, 1000 * 3));
   return 'end';
 }
 

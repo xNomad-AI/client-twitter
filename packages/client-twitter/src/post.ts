@@ -166,7 +166,7 @@ export class RuntimeTwitterPostHelper {
   /**
    * Generates and posts a new tweet. If isDryRun is true, only logs what would have been posted.
    */
-  async generatePostTweet(username: string, max_tweet_length: number) {
+  async generatePostTweet(username: string, max_tweet_length: number, postTemplate?: string) {
     // it's better to using 4/5 MAX_LEN to prevent reach the limit
     const maxTweetLength = Math.floor((max_tweet_length * 4) / 5);
 
@@ -196,6 +196,7 @@ export class RuntimeTwitterPostHelper {
     const context = composeContext({
       state,
       template:
+        postTemplate ||
         this.runtime.character.templates?.twitterPostTemplate ||
         twitterPostTemplate,
     });
