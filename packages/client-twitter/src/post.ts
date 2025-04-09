@@ -99,7 +99,7 @@ interface PendingTweet {
 
 type PendingTweetApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
-class RuntimeTwitterPostHelper {
+export class RuntimeTwitterPostHelper {
   private twitterDataFetcher: TwitterDataFetcher;
 
   constructor(

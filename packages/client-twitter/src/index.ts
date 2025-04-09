@@ -6,7 +6,7 @@ import {
   type TwitterConfig,
 } from './environment.js';
 import { TwitterInteractionClient } from './interactions.js';
-import { TwitterPostClient } from './post.js';
+import { RuntimeTwitterPostHelper, TwitterPostClient } from './post.js';
 import { TwitterSearchClient } from './search.js';
 import { TwitterSpaceClient } from './spaces.js';
 import {
@@ -240,6 +240,37 @@ export class TwitterClientClass implements Client {
   }
 }
 
+/**
+
+ * @param {IAgentRuntime} runtime
+ * @returns
+ * - rawTweet: tweet before reduce the length
+ * - tweet: tweet after reduce the length
+ * @description Generate a tweet using the TwitterPostHelper class.
+ * @throws {Error} If TWITTER_USERNAME or MAX_TWEET_LENGTH is not found in runtime.
+ * @throws {Error} If MAX_TWEET_LENGTH is not a number.
+ */
+async function generatePostTweet(runtime: IAgentRuntime): Promise<{
+  rawTweet: string;
+  tweet: string;
+}> {
+  const helper = new RuntimeTwitterPostHelper(runtime, Logger);
+  const twitterUsername = runtime.character.settings?.secrets?.TWITTER_USERNAME;
+  const maxTweetLength = runtime.character.settings?.secrets?.MAX_TWEET_LENGTH;
+  if (!twitterUsername) {
+    throw new Error('TWITTER_USERNAME not found in runtime');
+  }
+  if (!maxTweetLength || isNaN(Number(maxTweetLength))) {
+    throw new Error('MAX_TWEET_LENGTH not found in runtime or is not a number');
+  }
+
+  const resp = await helper.generatePostTweet(twitterUsername, Number(maxTweetLength));
+  return {
+    rawTweet: resp.rawTweetContent,
+    tweet: resp.tweetTextForPosting
+  }
+}
+
 export const TwitterClient: Client & {
   getStatus(runtime: IAgentRuntime): TwitterClientStatus;
   stopByAgentId(agentId: string): Promise<void>;
@@ -247,4 +278,11 @@ export const TwitterClient: Client & {
 export const TwitterClientInterface: Client = TwitterClient;
 
 export default TwitterClientInterface;
-export { TwitterClientStatus, TwitterConfig, ActionTimelineType, validateTwitterConfig, wrapperFetchFunction };
+export {
+  TwitterClientStatus,
+  TwitterConfig,
+  ActionTimelineType,
+  validateTwitterConfig,
+  wrapperFetchFunction,
+  generatePostTweet
+};

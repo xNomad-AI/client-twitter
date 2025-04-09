@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 
@@ -7,6 +7,7 @@ import { taskTimeout } from '../constant.js';
 
 @Injectable()
 export class TasksService {
+  private logger = new Logger(TasksService.name);
   constructor(
     @InjectModel(Task.name) private readonly taskModel: Model<Task>
   ) { }
@@ -29,6 +30,11 @@ export class TasksService {
   async updateByTitle(title: string, updateTask: Partial<Task>): Promise<Task | null> {
     updateTask.updatedAt = new Date();
     return this.taskModel.findOneAndUpdate({ title }, updateTask, { new: true });
+  }
+
+  async updateByNftId(nftId: string, updateTask: Partial<Task>): Promise<Task | null> {
+    updateTask.updatedAt = new Date();
+    return this.taskModel.findOneAndUpdate({ nftId }, updateTask, { new: true });
   }
 
   async updateTaskRunningSignalByTitle(title: string, signal: keyof Task['runningSignal'], value: boolean) {
@@ -73,6 +79,7 @@ export class TasksService {
     return this.taskModel.findOne({ agentId });
   }
 
+  // required by another service
   async getTaskByNftId(nftId: string): Promise<Required<Task> | null> {
     return this.taskModel.findOne({ nftId });
   }
@@ -100,6 +107,22 @@ export class TasksService {
     return this.updateByTitle(title, { action: 'stop' });
   }
 
+  // required by another service
+  async stopTaskByNftId(nftId: string): Promise<Task | null> {
+    const task = await this.getTaskByNftId(nftId);
+    if (!task) {
+      this.logger.warn(`Task with nftId ${nftId} not found`);
+      return null;
+    }
+
+    // if the task is already stopped, return it so that to prevent update
+    if (task.status === TaskStatusName.STOPPED) {
+      return task;
+    }
+
+    return this.updateByNftId(nftId, { action: 'stop' });
+  }
+
   async restartTask(id: string): Promise<Task | null> {
     return this.update(id, { action: 'restart' });
   }
@@ -110,7 +133,11 @@ export class TasksService {
         // get the task require to start
         { action: TaskActionName.START, status: TaskStatusName.STOPPED },
         // get the timeout task
-        { updatedAt: { $lt: new Date(Date.now() - taskTimeout) }, status: TaskStatusName.RUNNING },
+        {
+          updatedAt: { $lt: new Date(Date.now() - taskTimeout) },
+          status: TaskStatusName.RUNNING,
+          action: { $ne: TaskActionName.STOP }
+        },
       ]
     };
     let tasks = await this.taskModel.find(query);

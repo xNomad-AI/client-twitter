@@ -391,8 +391,8 @@ export class WatcherService {
         this.stopTask(localTask.task);
       } else if (localTask.task.action === TaskActionName.START && localTask.task.status !== TaskStatusName.RUNNING) {
         // if task running failed for multi times, block restart until user update the task
-        await this.onLocalTaskStartFailed(localTask.task);
-        this.startTask(localTask.task, localTask.runtime);
+        const _continue = await this.onLocalTaskStartFailed(localTask.task);
+        if (_continue) this.startTask(localTask.task, localTask.runtime);
       } else if (localTask.task.action === TaskActionName.STOP && localTask.task.status !== TaskStatusName.STOPPED) {
         this.stopTask(localTask.task);
       } else if (localTask.task.action === TaskActionName.RESTART && localTask.task.status !== TaskStatusName.RESTARTED) {
@@ -414,11 +414,17 @@ export class WatcherService {
     this.taskCounter.add(task.title, 1);
 
     const count = this.taskCounter.get(task.title);
-    // if failed for more than 50% of the time in one day, stop the task
-    if (count && _.sum(count) > CheckLocalTasksStatusTimesOneDay / 2) {
+    // if failed for more than 33% of the time in one day, stop the task
+    if (count && _.sum(count) > CheckLocalTasksStatusTimesOneDay / 3) {
       this.logger.warn(`${prefix} ${task.title} start failed for ${count} times, stop the task`);
       await this.tasksService.updateTaskRunningSignalByTitle(task.title, 'startFailedForMultipleTimes', true);
       task.runningSignal.startFailedForMultipleTimes = true;
+      return false;
     }
+    if (count && count.length % 100 === 0) {
+      this.logger.log(`${prefix} ${task.title} start failed for ${count} times`);
+    }
+
+    return true;
   }
 }
