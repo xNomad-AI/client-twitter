@@ -8,6 +8,7 @@
     "init-settings": "node --loader ts-node/esm ./init-settings.ts",
     "create-task": "node --loader ts-node/esm ./create-task.ts",
     "init-debug-runtime": "/bin/bash init-debug-runtime.sh",
+    "debug": "node --loader ts-node/esm ./debug.ts",
     "debug-client-twitter": "node --loader ts-node/esm ./debug-client-twitter.ts"
   },
   "dependencies": {
