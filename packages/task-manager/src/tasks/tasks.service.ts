@@ -100,11 +100,11 @@ export class TasksService {
   }
 
   async startTask(id: string): Promise<Task | null> {
-    return this.update(id, { action: 'start' });
+    return this.update(id, { action: TaskActionName.START });
   }
 
   async stopTask(title: string): Promise<Task | null> {
-    return this.updateByTitle(title, { action: 'stop' });
+    return this.updateByTitle(title, { action: TaskActionName.STOP });
   }
 
   // required by another service
@@ -116,11 +116,26 @@ export class TasksService {
     }
 
     // if the task is already stopped, return it so that to prevent update
-    if (task.status === TaskStatusName.STOPPED) {
+    if (task.action === TaskActionName.STOP) {
       return task;
     }
 
-    return this.updateByNftId(nftId, { action: 'stop' });
+    return this.updateByNftId(nftId, { action: TaskActionName.STOP });
+  }
+
+  async startTaskByNftId(nftId: string): Promise<Task | null> {
+    const task = await this.getTaskByNftId(nftId);
+    if (!task) {
+      this.logger.warn(`Task with nftId ${nftId} not found`);
+      return null;
+    }
+
+    // if the task is already started, return it so that to prevent update
+    if (task.action === TaskActionName.START) {
+      return task;
+    }
+
+    return this.updateByNftId(nftId, { action: TaskActionName.START });
   }
 
   async restartTask(id: string): Promise<Task | null> {
