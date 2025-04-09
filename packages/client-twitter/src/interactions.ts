@@ -108,6 +108,14 @@ export class TwitterInteractionClient {
   }
 
   async start() {
+    // should start right now, and then every X seconds
+    this.handleTwitterInteractions().catch((error) => {
+      this.logger.error(
+        `Error in handleTwitterInteractions: ${error}`,
+        error,
+      );
+    });
+
     this.handleTwitterInteractionsInterval = setInterval(async () => {
       await this.handleTwitterInteractions();
     }, this.client.twitterConfig.TWITTER_POLL_INTERVAL * 1000);
@@ -141,8 +149,7 @@ export class TwitterInteractionClient {
       ).tweets;
 
       this.logger.log(
-        'Completed checking mentioned tweets:',
-        mentionCandidates.length,
+        `Completed checking mentioned tweets: ${mentionCandidates.length}`,
       );
       let uniqueTweetCandidates = [...mentionCandidates];
       // Only process target users if configured
@@ -459,6 +466,8 @@ export class TwitterInteractionClient {
       context,
       modelClass: ModelClass.LARGE,
     });
+
+    this.logger.log(`Generated response: ${JSON.stringify(response)}`);
 
     const removeQuotes = (str: string) => str.replace(/^['"](.*)['"]$/, '$1');
 

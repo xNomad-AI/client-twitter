@@ -243,6 +243,8 @@ export class TwitterClientClass implements Client {
 /**
 
  * @param {IAgentRuntime} runtime
+  * @param {string} twitterUsername
+  * @param {number} maxTweetLength
  * @returns
  * - rawTweet: tweet before reduce the length
  * - tweet: tweet after reduce the length
@@ -250,13 +252,11 @@ export class TwitterClientClass implements Client {
  * @throws {Error} If TWITTER_USERNAME or MAX_TWEET_LENGTH is not found in runtime.
  * @throws {Error} If MAX_TWEET_LENGTH is not a number.
  */
-async function generatePostTweet(runtime: IAgentRuntime): Promise<{
+async function generatePostTweet(twitterUsername: string, maxTweetLength: number, runtime: IAgentRuntime): Promise<{
   rawTweet: string;
   tweet: string;
 }> {
   const helper = new RuntimeTwitterPostHelper(runtime, Logger);
-  const twitterUsername = runtime.character.settings?.secrets?.TWITTER_USERNAME;
-  const maxTweetLength = runtime.character.settings?.secrets?.MAX_TWEET_LENGTH;
   if (!twitterUsername) {
     throw new Error('TWITTER_USERNAME not found in runtime');
   }
