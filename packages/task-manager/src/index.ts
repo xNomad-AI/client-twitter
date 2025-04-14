@@ -4,6 +4,7 @@ import { TwitterClientStarter } from './shared/starter.service.js';
 import { TasksService } from './tasks/tasks.service.js';
 import { TasksModule } from './tasks/tasks.module.js';
 import { autoFixTwitterUsername } from './tasks/schemas/task.schema.js';
+import { IRuntimeCreator } from './tasks/interfaces/task.interface.js';
 
 export {
     TaskManagerModule,
@@ -11,5 +12,6 @@ export {
     TwitterClientStarter,
     TasksService,
     TasksModule,
-    autoFixTwitterUsername
+    autoFixTwitterUsername,
+    IRuntimeCreator
 };

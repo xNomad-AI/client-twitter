@@ -4,12 +4,10 @@ import { TwitterClient } from '@elizaos/client-twitter';
 
 import { TasksService } from './tasks.service.js';
 import { CreateTaskDto, ErrorReportDto, TaskResponseDto, UpdateTaskDto } from './dto/task.dto.js';
-import { autoFixTwitterUsername, Task, TaskStatusName } from './schemas/task.schema.js';
-import { workerUuid } from '../constant.js';
-import { SHARED_SERVICE } from '../shared/shared.service.js';
+import { autoFixTwitterUsername, fillDefaultToPartialTask, Task, TaskActionName } from './schemas/task.schema.js';
 import { AdminApiKeyGuard } from './tasks.guard.js';
-import { TaskSettingsService } from './task-settings.service.js';
 import { WatcherService } from '../watcher/watcher.service.js';
+import { workerUuid } from '../constant.js';
 
 interface ErrorCacheConfig {
   maxLength: number;
@@ -99,83 +97,61 @@ class ErrorCacheService {
 export class TasksController {
   private readonly logger = new Logger(`${TasksController.name}_${workerUuid}`);
   private errorCacheService = new ErrorCacheService();
-  private sharedService = SHARED_SERVICE;
 
   constructor(
     private readonly tasksService: TasksService,
-    private readonly taskSettingsService: TaskSettingsService,
-    private watcherService: WatcherService,
+    private readonly watcherService: WatcherService,
   ) { }
+
+  // should full update configuration of client-twitter
+  async updateTask(
+    nftId: string,
+    updateTaskDto: UpdateTaskDto
+  ) {
+    const updatedTask = await this.tasksService.updateTask(nftId, updateTaskDto);
+    if (!updatedTask) {
+      throw new BadRequestException('the task not exists');
+    }
+
+    if (updatedTask.createdBy === workerUuid) {
+      const res = await this.watcherService.updateTask(updatedTask);
+      if (!res) {
+        throw new BadRequestException(`${updatedTask.title} create update task failed`);
+      }
+    }
+
+    return updatedTask;
+  }
 
   @Post()
   @ApiCreatedResponse({
     type: TaskResponseDto,
     description: 'will full nested object for example configuration, so you should be careful when using this',
   })
-  async createTask(
+  async createOrUpdateTask(
     @Body() createTaskDto: CreateTaskDto
   ) {
+    // fix twitter username
     if (createTaskDto.configuration?.TWITTER_USERNAME) {
       createTaskDto.configuration.TWITTER_USERNAME = autoFixTwitterUsername(
         createTaskDto.configuration.TWITTER_USERNAME
       );
     }
-
-    const task: Task = {
-      title: createTaskDto.title,
-      agentId: createTaskDto.agentId,
-      nftId: createTaskDto.nftId,
-      action: createTaskDto.action,
-      description: createTaskDto.description || '',
-      configuration: createTaskDto.configuration || {},
-      status: TaskStatusName.STOPPED,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      eventUpdatedAt: new Date(),
-      createdBy: workerUuid,
-      tags: [],
-      runningSignal: {
-        startFailedForMultipleTimes: false,
-      }
-    };
-
-    if (!this.sharedService.taskRuntime.get(task.title)) {
-      this.logger.warn(`task ${task.title} runtime not found`);
-      // http 400 error
-      throw new BadRequestException(`task ${task.title} runtime not found`);
-    }
+    const task: Task = fillDefaultToPartialTask(createTaskDto);
 
     const dbTask = await this.tasksService.getTaskByTitle(task.title);
     if (dbTask) {
       // if task already exists, update it
       this.logger.warn(`task ${task.title} already exists, update it`);
-      if (!dbTask.configuration.TWITTER_HTTP_PROXY) {
-        const proxy = await this.taskSettingsService.randomGetHttpProxy();
-        if (!proxy) {
-          this.logger.error('no http proxy found');
-        } else {
-          dbTask.configuration.TWITTER_HTTP_PROXY = proxy;
-        }
-      }
-
-      // using the old http proxy
-      if (createTaskDto.configuration && dbTask.configuration.TWITTER_HTTP_PROXY) {
-        createTaskDto.configuration.TWITTER_HTTP_PROXY = dbTask.configuration.TWITTER_HTTP_PROXY;
-      }
-      return await this.updateTask(dbTask.id, createTaskDto);
-    } else {
-      if (!task.configuration.TWITTER_HTTP_PROXY) {
-        const proxy = await this.taskSettingsService.randomGetHttpProxy();
-        if (!proxy) {
-          this.logger.error('no http proxy found');
-        } else {
-          task.configuration.TWITTER_HTTP_PROXY = proxy;
-        }
-      }
+      return await this.updateTask(dbTask.nftId, createTaskDto);
     }
 
-    const createdTask = await this.tasksService.create(task);
-    this.watcherService.createTask(createdTask);
+    const createdTask = await this.tasksService.createTask(task);
+    // trigger a create task event
+    const res = await this.watcherService.createTask(createdTask);
+    if (!res) {
+      throw new BadRequestException(`${createdTask.title} create new task event failed`);
+    }
 
     return createdTask;
   }
@@ -187,26 +163,35 @@ export class TasksController {
   async stopTask(
     @Param('title') title: string
   ) {
-    const task = await this.tasksService.stopTask(title);
+    const task = await this.tasksService.getTaskByTitle(title);
     if (!task) {
-      // http 400 error
       throw new BadRequestException('the task not exists');
     }
 
-    if (!this.sharedService.taskRuntime.get(task.title)) {
-      this.logger.warn(`task ${task.title} runtime not found`);
+    if (task.action === TaskActionName.STOP) {
+      this.logger.warn(`task ${task.title} already stopped`);
       // http 400 error
-      throw new BadRequestException(`task ${task.title} runtime not found`);
+      throw new BadRequestException(`task ${task.title} already stopped`);
     }
 
-    this.watcherService.stopTask(task);
+    const updatedTask = await this.tasksService.stopTask(task.nftId);
+    if (!updatedTask) {
+      throw new BadRequestException('the task not exists');
+    }
 
-    return task;
+    // create a stop task event
+    const res = await this.watcherService.stopTask(updatedTask);
+    if (!res) {
+      throw new BadRequestException(`${updatedTask.title} create stop task event failed`);
+    }
+
+    return updatedTask;
   }
 
   @Post('/agent/:agentId/stop')
   @ApiCreatedResponse({
     type: TaskResponseDto,
+    description: 'stop the client twitter only. if the task action is start, the Cron will start a new one',
   })
   async stopTaskByAgentId(
     @Param('agentId') agentId: string
@@ -214,76 +199,12 @@ export class TasksController {
     const task = await this.tasksService.getTaskByAgentId(agentId);
     if (!task) {
       // http 400 error
+      this.logger.debug(`task ${agentId} not found`);
       throw new BadRequestException('the task not exists');
     }
 
-    TwitterClient.stopByAgentId(agentId);
+    await TwitterClient.stopByAgentId(agentId);
     return { 'message': 'stopping the client' };
-  }
-
-  @Post(':twitterUserName/report/suspended')
-  @ApiCreatedResponse({
-    type: TaskResponseDto,
-  })
-  async suspendedTask(
-    @Param('twitterUserName') twitterUserName: string
-  ) {
-    // TODO using getTaskByTwitterUserNameAndAgentId
-    // pause the task for 4 hours
-    const tasks = await this.tasksService.getTaskByTwitterUserName(twitterUserName);
-    if (tasks.length === 0) {
-      throw new BadRequestException('the task not exists');
-    }
-
-    const ret: (Task | null)[] = [];
-
-    for (const task of tasks) {
-      let tags: Task['tags'] = ['suspended'];
-      if (task.tags.includes('suspended')) {
-        tags = [...task.tags];
-      } else {
-        tags = [...task.tags, 'suspended'];
-      }
-      const resp = await this.tasksService.updateByTitle(
-        // 4h
-        task.title, { tags, pauseUntil: new Date(Date.now() + 1000 * 60 * 60 * 4) }
-      );
-      ret.push(resp);
-    }
-
-    return ret;
-  }
-
-  @Put(':id')
-  @ApiCreatedResponse({
-    type: TaskResponseDto,
-  })
-  async updateTask(
-    @Param('id') id: string,
-    @Body() updateTaskDto: UpdateTaskDto
-  ) {
-    const task: Partial<Task> = {
-      ...updateTaskDto,
-      runningSignal: {
-        startFailedForMultipleTimes: false,
-      }
-    };
-    const updatedTask = await this.tasksService.update(id, task);
-    if (!updatedTask) {
-      // http 400 error
-      throw new BadRequestException('the task not exists');
-    }
-
-    if (!this.sharedService.taskRuntime.get(updatedTask.title)) {
-      this.logger.warn(`task ${updatedTask.title} runtime not found`);
-      // http 400 error
-      throw new BadRequestException(`task ${updatedTask.title} runtime not found`);
-    }
-
-    if (updatedTask.createdBy === workerUuid) {
-      this.watcherService.updateTask(updatedTask);
-    }
-    return updatedTask;
   }
 
   @Get(':title/status')
@@ -294,13 +215,37 @@ export class TasksController {
     const ret = await this.tasksService.getTaskByTitle(title);
     if (!ret) {
       // http 400 error
+      this.logger.debug(`task ${title} not found`);
       throw new BadRequestException('the task not exists');
     }
 
     return ret;
   }
 
-  @Post(':twitterUserName/report/error')
+  @Post('/report/:twitterUserName/suspended')
+  @ApiCreatedResponse({
+    type: TaskResponseDto,
+  })
+  async suspendedTask(
+    @Param('twitterUserName') twitterUserName: string
+  ) {
+    // TODO using getTaskByTwitterUserNameAndAgentId
+    const tasks = await this.tasksService.getTaskByTwitterUserName(twitterUserName);
+    if (tasks.length === 0) {
+      this.logger.debug(`task ${twitterUserName} not found`);
+      throw new BadRequestException('the task not exists');
+    }
+    
+    const ret: Task[] = [];
+    for (const task of tasks) {
+      const resp = await this.tasksService.suspendedTask(task.nftId);
+      if (resp) ret.push(resp);
+    }
+
+    return ret;
+  }
+
+  @Post('/report/:twitterUserName/error')
   @ApiCreatedResponse({
     type: TaskResponseDto,
     description: 'Returns the task with updated error information',
@@ -311,19 +256,18 @@ export class TasksController {
   ) {
     const task = await this.tasksService.getTaskByTwitterUserNameAndAgentId(twitterUserName, body.agentId);
     if (!task) {
+      this.logger.debug(`task ${twitterUserName} not found`);
       throw new BadRequestException('the task not exists');
     }
 
+    // add error to cache to prevent too many errors
     const shouldUpdate = this.errorCacheService.addError(task.title, body.message);
-
     if (shouldUpdate) {
       const latestError = this.errorCacheService.getAggregatedErrors(task.title);
       if (latestError) {
-        const updatedTask = await this.tasksService.updateByTitle(task.title, {
-          lastError: {
-            message: latestError.message,
-            updatedAt: new Date(latestError.timestamp),
-          },
+        const updatedTask = await this.tasksService.reportError(task.nftId, {
+          message: latestError.message,
+          updatedAt: new Date(latestError.timestamp),
         });
 
         return updatedTask;

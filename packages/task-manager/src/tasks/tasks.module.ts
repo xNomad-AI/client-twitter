@@ -8,6 +8,7 @@ import { TaskSettingsSchema, TaskSettings } from './schemas/task-settings.schema
 import { TaskSettingsService } from './task-settings.service.js';
 import { TaskSettingsController } from './task-settings.controller.js';
 import { WatcherModule } from '../watcher/watcher.module.js';
+import { TasksBaseService } from './tasks-base.service.js';
 // import { SharedModule } from '../shared/shared.module.js';
 
 @Module({
@@ -18,7 +19,7 @@ import { WatcherModule } from '../watcher/watcher.module.js';
     // SharedModule
   ],
   controllers: [TasksController, TaskSettingsController],
-  providers: [TasksService, TaskSettingsService],
+  providers: [TasksService, TaskSettingsService, TasksBaseService],
   exports: [TasksService],
 })
 export class TasksModule { }

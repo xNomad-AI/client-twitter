@@ -24,12 +24,14 @@ export enum TaskTagName {
 }
 export type TaskTags = 'suspended';
 
-export function isPaused(task: Task) {
+export function isTaskPaused(task: Task) {
   return task.pauseUntil && task.pauseUntil > new Date();
 }
 
 export function isRunningByAnotherWorker(task: Task) {
-  return task.status === TaskStatusName.RUNNING && task.createdBy !== workerUuid && (task.updatedAt.getTime() + taskTimeout) > Date.now();
+  return task.status === TaskStatusName.RUNNING &&
+    task.createdBy !== workerUuid &&
+    (task.updatedAt.getTime() + taskTimeout) > Date.now();
 }
 
 export function autoFixTwitterUsername(twitterUsername: string) {
@@ -43,6 +45,30 @@ export function autoFixTwitterUsername(twitterUsername: string) {
 export function getTaskTitle(twitterUsername: string, nftId: string) {
   twitterUsername = autoFixTwitterUsername(twitterUsername);
   return `${twitterUsername}-${nftId}`;
+}
+
+export function fillDefaultToPartialTask(task: Partial<Task> = {}): Task {
+  const defaultTask: Task = {
+    title: task.title!,
+    agentId: task.agentId!,
+    nftId: task.nftId!,
+    action: task.action!,
+    description: task.description || '',
+    configuration: task.configuration || {},
+    status: task.status || TaskStatusName.STOPPED,
+    createdAt: task.createdAt || new Date(),
+    updatedAt: task.updatedAt || new Date(),
+    eventUpdatedAt: task.eventUpdatedAt || new Date(),
+    lastEventCreateAt: task.lastEventCreateAt || new Date(),
+    createdBy: task.createdBy || workerUuid,
+    tags: task.tags || [],
+    runningSignal: task.runningSignal || {
+      startFailedForMultipleTimes: false,
+      accountSuspended: false,
+    }
+  };
+
+  return defaultTask;
 }
 
 @Schema({ collection: taskMongodbCollectionName })
@@ -59,12 +85,14 @@ export class Task {
   nftId: string;
 
   @Prop({ type: String, enum: TaskActionName, required: true })
+  // what the user want the task to be
   action: TaskAction;
 
   @Prop({ type: String })
   description: string;
 
   @Prop({ type: String, enum: TaskStatusName })
+  // what the actual status of the task, only changed by the cron
   status: TaskStatus;
 
   @Prop({
@@ -107,27 +135,22 @@ export class Task {
       updatedAt: { type: Date, required: true }
     },
   })
+  // last error of the task
   lastError?: {
     message: string;
     updatedAt: Date;
   };
 
-  @Prop({ type: [String], enum: TaskTagName })
-  tags: TaskTags[];
+  @Prop({ type: Date })
+  // the Task.status changed at which time
+  lastEventCreateAt: Date;
 
   @Prop({ type: Date })
-  createdAt: Date;
-
-  @Prop({ type: String })
-  createdBy: string;
-
-  @Prop({ type: Date })
-  updatedAt: Date;
-
-  @Prop({ type: Date })
+  // the task should update this interval
   eventUpdatedAt: Date;
 
   @Prop({ type: Date })
+  // if the program thought the task should be paused, it will set this field to the time when the task should be resumed
   pauseUntil?: Date;
 
   @Prop({
@@ -135,11 +158,30 @@ export class Task {
     required: true,
     properties: {
       startFailedForMultipleTimes: { type: Boolean, required: true },
+      accountSuspended: { type: Boolean, required: true },
     },
   })
+  // this field add the reason why the task is paused
   runningSignal: {
     startFailedForMultipleTimes: boolean;
+    accountSuspended: boolean;
   }
+
+  @Prop({ type: [String], enum: TaskTagName })
+  // tags of the task
+  tags: TaskTags[];
+
+  @Prop({ type: Date })
+  // the task created at which time
+  createdAt: Date;
+
+  @Prop({ type: String })
+  // the task created by which worker
+  createdBy: string;
+
+  @Prop({ type: Date })
+  // the task updated at which time
+  updatedAt: Date;
 }
 
 export const TaskSchema = SchemaFactory.createForClass(Task);
@@ -147,6 +189,5 @@ export const TaskSchema = SchemaFactory.createForClass(Task);
 TaskSchema.index({ title: 1 }, { unique: true });
 TaskSchema.index({ agentId: 1 }, { unique: true });
 TaskSchema.index({ nftId: 1 }, { unique: true });
+TaskSchema.index({ status: 1, action: 1, updatedAt: 1 });
 TaskSchema.index({ createdBy: 1, status: 1 });
-TaskSchema.index({ updatedAt: 1, status: 1 });
-TaskSchema.index({ action: 1, status: 1 });

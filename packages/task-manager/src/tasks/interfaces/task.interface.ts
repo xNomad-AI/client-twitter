@@ -100,3 +100,7 @@ export class TaskEvent {
     )
   }
 }
+
+export type IRuntimeCreator = {
+  createRuntimeByNftId: (nftId: string) => Promise<IAgentRuntime>;
+}

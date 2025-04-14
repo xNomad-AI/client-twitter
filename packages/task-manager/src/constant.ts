@@ -3,14 +3,22 @@ import * as crypto from 'crypto';
 // load .env file
 import dotenv from 'dotenv';
 import { join } from 'path';
-console.log(join(process.cwd(), '.env'));
 dotenv.config({ path: join(process.cwd(), '.env') });
 
+const MINUTE = 1000 * 60;
+const HOUR = MINUTE * 60;
 export const workerUuid = crypto.randomUUID();
+// one proxy can used by how many users
+export const HTTP_PROXY_MAX_USERS = 2;
 // how long the task do not update the updateAt consider as timeout
-export const taskTimeout = 1000 * 60 * 7;
+export const taskTimeout = MINUTE * 7;
 // how long the lock timeout to handle the action of client-twitter
-export const leaseTime = 1000 * 60 * 8;
+export const leaseTime = MINUTE * 8;
+// when detect the twitter account is suspended, how long to retry
+export const suspendedAccountRetryInterval = HOUR * 12;
+export const startFailedForMultipleTimesRetryInterval = HOUR * 8;
+// TODO DenyLoginSubtask, other
+
 export const TASK_MANAGER_ADMIN_API_KEY = process.env.TASK_MANAGER_ADMIN_API_KEY;
 
 // mongodb settings start--------------------------------

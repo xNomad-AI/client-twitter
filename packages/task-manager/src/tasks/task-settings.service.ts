@@ -5,7 +5,8 @@ import { Model } from 'mongoose';
 
 import { TaskSettings } from './schemas/task-settings.schema.js';
 import { UpdateTaskSettingsDto } from './dto/task-settings.dto.js';
-import { TasksService } from './tasks.service.js';
+import { TasksBaseService } from './tasks-base.service.js';
+import { HTTP_PROXY_MAX_USERS } from '../constant.js';
 
 @Injectable()
 export class TaskSettingsService {
@@ -13,7 +14,7 @@ export class TaskSettingsService {
 
   constructor(
     @InjectModel(TaskSettings.name) private readonly taskSettingsModel: Model<TaskSettings>,
-    private readonly tasksService: TasksService,
+    private readonly tasksBaseService: TasksBaseService,
   ) { }
 
   async upsertManagerSettings(proxies: UpdateTaskSettingsDto[]) {
@@ -62,8 +63,6 @@ export class TaskSettingsService {
   }
 
   async randomGetHttpProxy() {
-    const HTTP_PROXY_MAX_USERS = 2;
-
     const proxies = await this.taskSettingsModel
       .find({
         category: 'httpProxy',
@@ -77,6 +76,8 @@ export class TaskSettingsService {
       const proxy = proxies[0].value.httpProxy;
       await this.increaseHttpProxyCount(proxy);
       return proxy;
+    } else {
+      this.logger.error('no http proxy found');
     }
   }
 
@@ -87,13 +88,11 @@ export class TaskSettingsService {
     );
   }
 
-  // interval update the count from running tasks, every weak is ok
   @Cron(CronExpression.EVERY_WEEK)
-  // @Cron(CronExpression.EVERY_10_SECONDS)
   async updateHttpProxyUsage() {
     this.logger.debug(`start updateHttpProxyUsage`);
 
-    const groupedTasks = await this.tasksService.getTasksGroupbyHttpProxy();
+    const groupedTasks = await this.tasksBaseService.getTasksGroupbyHttpProxy();
     for (const [httpProxy, tasks] of groupedTasks) {
       await this.taskSettingsModel.updateOne(
         { 'value.httpProxy': httpProxy },

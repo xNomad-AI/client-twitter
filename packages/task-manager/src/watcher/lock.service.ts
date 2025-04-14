@@ -13,6 +13,21 @@ export class MongodbLockService {
     @InjectModel(MongodbLock.name) private readonly lockModel: Model<MongodbLock>
   ) { }
 
+  async isLocked(taskTitle: string): Promise<boolean> {
+    const currentLock = await this.lockModel.findOne({
+      title: taskTitle,
+      expiresAt: { $gt: new Date() } // Check if the lock has not expired
+    });
+  
+    if (currentLock) {
+      this.logger.debug(`Task ${taskTitle} is currently locked.`);
+      return true;
+    }
+  
+    this.logger.debug(`Task ${taskTitle} is not locked.`);
+    return false;
+  }
+
   async acquireLock(taskTitle: string): Promise<boolean> {
     const lockDoc: MongodbLock = {
       title: taskTitle,

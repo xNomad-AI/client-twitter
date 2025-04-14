@@ -202,6 +202,7 @@ export class RuntimeTwitterPostHelper {
     });
 
     this.logger.debug('generate post prompt:\n' + context);
+    this.logger.info('runtime.character.system:\n' + this.runtime.character.system);
 
     const response = await generateText({
       runtime: this.runtime,
