@@ -37,7 +37,7 @@ export function CatchCronError(cronTime: string) {
       try {
         // add random delay to avoid all cron job run at the same time
         await randomDelay();
-        await originalMethod.apply(this, args);
+        return await originalMethod.apply(this, args);
       } catch (error) {
         logger.error(`Error in cron job "${propertyName}": ${error}`);
         throw error;
@@ -48,7 +48,7 @@ export function CatchCronError(cronTime: string) {
   };
 }
 
-class TimeoutMap<K> {
+export class TimeoutMap<K> {
   private map: Map<K, { value: number; createdAt: number }[]>;
 
   constructor(private timeout: number) {
